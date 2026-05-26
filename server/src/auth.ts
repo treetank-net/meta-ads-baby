@@ -93,7 +93,7 @@ function accountStatusLabel(status: number): string {
   return labels[status] || `Unknown (${status})`;
 }
 
-const OAUTH_REDIRECT_URI = 'https://treetank.gitlab.io/meta-ads-baby/callback.html';
+const OAUTH_REDIRECT_URI = 'https://treetank-net.github.io/meta-ads-baby/callback.html';
 
 function buildAuthUrl(appId: string, stateParam: string): string {
   const authUrl = new URL(`https://www.facebook.com/${GRAPH_API_VERSION}/dialog/oauth`);
