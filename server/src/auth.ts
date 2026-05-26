@@ -11,6 +11,7 @@ function openBrowser(url: string) {
 
 const SCOPES = 'ads_management,ads_read,business_management';
 const GRAPH_API_VERSION = 'v25.0';
+const DEFAULT_APP_ID = '997313152807835';
 
 interface OAuthState {
   server: http.Server | null;
@@ -92,15 +93,51 @@ function accountStatusLabel(status: number): string {
   return labels[status] || `Unknown (${status})`;
 }
 
-function buildAuthUrl(appId: string, stateParam: string, port: number): string {
+function buildAuthUrl(appId: string, stateParam: string, port: number, useImplicit: boolean): string {
   const authUrl = new URL(`https://www.facebook.com/${GRAPH_API_VERSION}/dialog/oauth`);
   authUrl.searchParams.set('client_id', appId);
   authUrl.searchParams.set('redirect_uri', `http://localhost:${port}/callback`);
-  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('response_type', useImplicit ? 'token' : 'code');
   authUrl.searchParams.set('scope', SCOPES);
   authUrl.searchParams.set('state', stateParam);
   return authUrl.toString();
 }
+
+const IMPLICIT_CALLBACK_PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body { font-family: system-ui; display:flex; justify-content:center; align-items:center;
+         min-height:100vh; margin:0; background:#f0f4f8; }
+  .card { background:white; padding:2.5rem; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.1);
+          max-width:480px; width:100%; text-align:center; }
+  .error { color:#dc2626; }
+</style></head><body><div class="card">
+  <p id="status">Processing authorization...</p>
+</div>
+<script>
+(async () => {
+  const hash = window.location.hash.substring(1);
+  const params = new URLSearchParams(hash);
+  const accessToken = params.get('access_token');
+  const statusEl = document.getElementById('status');
+  if (!accessToken) {
+    statusEl.className = 'error';
+    statusEl.textContent = 'No access token received. Authorization may have been denied.';
+    return;
+  }
+  try {
+    const res = await fetch('/token', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ access_token: accessToken })
+    });
+    const data = await res.json();
+    if (data.error) { statusEl.className = 'error'; statusEl.textContent = data.error; return; }
+    window.location.href = '/setup';
+  } catch (e) {
+    statusEl.className = 'error';
+    statusEl.textContent = 'Connection error: ' + e.message;
+  }
+})();
+</script></body></html>`;
 
 const OPEN_PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
@@ -123,21 +160,24 @@ const OPEN_PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8">
   .saved { color:#16a34a; font-size:.85rem; font-style:italic; margin-top:.25rem; }
 </style></head><body><div class="card">
   <h1>Meta Ads — Authorize</h1>
-  <p>Enter your Meta App credentials and sign in with Facebook to grant access to your ad accounts.</p>
-  <p class="hint">Create an app at <a href="https://developers.facebook.com/apps/" target="_blank">Meta for Developers &rarr; My Apps</a>.
-  Required permissions: <strong>ads_management</strong>, <strong>ads_read</strong>, <strong>business_management</strong>.</p>
+  <p>Sign in with Facebook to grant access to your ad accounts.</p>
   <div>
-    <label>App ID</label>
-    <input id="app-id" placeholder="123456789012345">
-    <div id="id-saved" class="saved"></div>
-    <label>App Secret</label>
-    <input id="app-secret" placeholder="abc123def456..." type="password">
-    <div id="secret-saved" class="saved"></div>
+    <div class="buttons" style="margin-top:1rem">
+      <button class="btn-primary" id="btn-go">Sign in with Facebook</button>
+    </div>
+    <div id="open-error" class="error"></div>
+    <details style="margin-top:1.5rem">
+      <summary style="cursor:pointer;color:#666;font-size:.9rem">Advanced: use your own Meta App</summary>
+      <p class="hint" style="margin-top:.5rem">Provide your own App ID and Secret for long-lived tokens (60 days).
+      Without a secret, tokens last ~1-2 hours and you'll re-authenticate when they expire.</p>
+      <label>App ID</label>
+      <input id="app-id" placeholder="Leave empty to use built-in app">
+      <div id="id-saved" class="saved"></div>
+      <label>App Secret</label>
+      <input id="app-secret" placeholder="Optional — enables long-lived tokens" type="password">
+      <div id="secret-saved" class="saved"></div>
+    </details>
   </div>
-  <div class="buttons">
-    <button class="btn-primary" id="btn-go">Sign in with Facebook</button>
-  </div>
-  <div id="open-error" class="error"></div>
 </div>
 <script>
 (async () => {
@@ -161,15 +201,11 @@ document.getElementById('btn-go').onclick = async () => {
   errEl.textContent = '';
   const appId = document.getElementById('app-id').value.trim();
   const appSecret = document.getElementById('app-secret').value.trim();
-  if (!appId) {
-    errEl.textContent = 'App ID is required. Get it from Meta for Developers > My Apps.';
-    return;
-  }
   btn.disabled = true;
   try {
     const res = await fetch('/start-oauth', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ app_id: appId, app_secret: appSecret || undefined })
+      body: JSON.stringify({ app_id: appId || undefined, app_secret: appSecret || undefined })
     });
     const data = await res.json();
     if (data.error) { errEl.textContent = data.error; btn.disabled = false; return; }
@@ -322,15 +358,34 @@ export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: stri
       const error = url.searchParams.get('error');
       const errorDescription = url.searchParams.get('error_description');
       if (error) { html(200, `<h1>Authorization error</h1><p>${errorDescription || error}</p>`); return; }
-      if (state !== stateParam || !code) { html(400, '<h1>Invalid request</h1>'); return; }
+
+      if (code && state === stateParam) {
+        try {
+          const shortLivedToken = await exchangeCodeForShortLivedToken(code, cfg.appId, cfg.appSecret, redirectUri);
+          const longLivedToken = await exchangeForLongLivedToken(shortLivedToken, cfg.appId, cfg.appSecret);
+          await saveConfig({ accessToken: longLivedToken });
+          cfg.accessToken = longLivedToken;
+          html(200, SETUP_PAGE);
+        } catch (err: any) {
+          html(500, `<h1>Error</h1><p>${err.message}</p>`);
+        }
+        return;
+      }
+
+      html(200, IMPLICIT_CALLBACK_PAGE);
+      return;
+    }
+
+    if (url.pathname === '/token' && req.method === 'POST') {
       try {
-        const shortLivedToken = await exchangeCodeForShortLivedToken(code, cfg.appId, cfg.appSecret, redirectUri);
-        const longLivedToken = await exchangeForLongLivedToken(shortLivedToken, cfg.appId, cfg.appSecret);
-        await saveConfig({ accessToken: longLivedToken });
-        cfg.accessToken = longLivedToken;
-        html(200, SETUP_PAGE);
+        const body = JSON.parse(await readBody(req));
+        const accessToken = (body.access_token || '').trim();
+        if (!accessToken) { json(400, { error: 'No access token received.' }); return; }
+        await saveConfig({ accessToken });
+        cfg.accessToken = accessToken;
+        json(200, { ok: true });
       } catch (err: any) {
-        html(500, `<h1>Error</h1><p>${err.message}</p>`);
+        json(500, { error: err.message || String(err) });
       }
       return;
     }
@@ -338,6 +393,12 @@ export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: stri
     if (url.pathname === '/open') {
       if (!oauthState) { html(404, '<h1>Authorization flow not active</h1>'); return; }
       html(200, OPEN_PAGE);
+      return;
+    }
+
+    if (url.pathname === '/setup') {
+      if (!cfg.accessToken) { html(400, '<h1>Not authorized yet</h1>'); return; }
+      html(200, SETUP_PAGE);
       return;
     }
 
@@ -355,15 +416,15 @@ export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: stri
         const body = JSON.parse(await readBody(req));
         const newId = (body.app_id || '').trim();
         const newSecret = (body.app_secret || '').trim();
-        if (!newId) { json(400, { error: 'App ID is required.' }); return; }
-        const effectiveSecret = newSecret || cfg.appSecret;
-        if (!effectiveSecret) { json(400, { error: 'App Secret is required. Enter it in the form above.' }); return; }
-        cfg.appId = newId;
+        const effectiveId = newId || cfg.appId || DEFAULT_APP_ID;
+        const effectiveSecret = newSecret || cfg.appSecret || '';
+        cfg.appId = effectiveId;
         cfg.appSecret = effectiveSecret;
-        const toSave: Record<string, string> = { appId: newId };
+        const toSave: Record<string, string> = { appId: effectiveId };
         if (newSecret) toSave['appSecret'] = newSecret;
         await saveConfig(toSave);
-        const authUrl = buildAuthUrl(cfg.appId, oauthState.stateParam, oauthState.port);
+        const useImplicit = !effectiveSecret;
+        const authUrl = buildAuthUrl(effectiveId, oauthState.stateParam, oauthState.port, useImplicit);
         oauthState.authUrl = authUrl;
         json(200, { url: authUrl });
       } catch (err: any) {
@@ -425,7 +486,9 @@ export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: stri
 
   server.listen(port, '127.0.0.1');
 
-  const authUrl = buildAuthUrl(cfg.appId, stateParam, port);
+  const effectiveAppId = cfg.appId || DEFAULT_APP_ID;
+  const useImplicit = !cfg.appSecret;
+  const authUrl = buildAuthUrl(effectiveAppId, stateParam, port, useImplicit);
   oauthState = { server, port, stateParam, authUrl, resolved: false, cfg };
 
   openBrowser(`http://127.0.0.1:${port}/open`);

@@ -108,9 +108,21 @@ export async function uploadImage(cfg: MetaAdsConfig, adAccountId: string, sourc
   const url = `${BASE_URL}/act_${adAccountId}/adimages`;
 
   if (source.url) {
-    const res = await post<{ images: Record<string, { hash: string; url: string }> }>(cfg, `/act_${adAccountId}/adimages`, { url: source.url });
-    const entry = Object.values(res.images)[0];
-    return entry;
+    try {
+      const res = await post<{ images: Record<string, { hash: string; url: string }> }>(cfg, `/act_${adAccountId}/adimages`, { url: source.url });
+      const entry = Object.values(res.images)[0];
+      return entry;
+    } catch (err) {
+      if (err instanceof MetaApiError && err.code === 3) {
+        const imgRes = await fetch(source.url);
+        if (!imgRes.ok) throw new Error(`Failed to download image from ${source.url}: ${imgRes.status}`);
+        const bytes = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+        const res = await post<{ images: Record<string, { hash: string; url: string }> }>(cfg, `/act_${adAccountId}/adimages`, { bytes });
+        const entry = Object.values(res.images)[0];
+        return entry;
+      }
+      throw err;
+    }
   }
 
   if (source.filePath) {
