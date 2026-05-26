@@ -1,272 +1,66 @@
-import { enums, ResourceNames } from 'google-ads-api';
-import { getCustomer } from './core.js';
 import type { MetaAdsConfig } from '../config.js';
+import { get, getAll, post } from './core.js';
 
-export async function mutateCampaignStatus(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  campaignId: string,
-  status: 'ENABLED' | 'PAUSED',
-): Promise<unknown> {
-  return mutateCampaignStatuses(cfg, customerId, [{ campaignId, status }]);
+export interface Campaign {
+  id: string;
+  name: string;
+  objective: string;
+  status: string;
+  configured_status: string;
+  effective_status: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  budget_remaining?: string;
+  bid_strategy?: string;
+  buying_type?: string;
+  special_ad_categories?: string[];
+  spend_cap?: string;
+  start_time?: string;
+  stop_time?: string;
+  created_time?: string;
+  updated_time?: string;
 }
 
-export async function mutateCampaignStatuses(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  campaigns: Array<{ campaignId: string; status: 'ENABLED' | 'PAUSED' }>,
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  return customer.campaigns.update(campaigns.map(({ campaignId, status }) => ({
-    resource_name: `customers/${customerId}/campaigns/${campaignId}`,
-    status: enums.CampaignStatus[status],
-  })));
-}
+const CAMPAIGN_FIELDS = [
+  'id', 'name', 'objective', 'status', 'configured_status', 'effective_status',
+  'daily_budget', 'lifetime_budget', 'budget_remaining', 'bid_strategy',
+  'buying_type', 'special_ad_categories', 'spend_cap',
+  'start_time', 'stop_time', 'created_time', 'updated_time',
+].join(',');
 
-export async function removeCampaigns(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  campaignIds: string[],
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  return customer.campaigns.remove(campaignIds.map((campaignId) => (
-    `customers/${customerId}/campaigns/${campaignId}`
-  )));
-}
-
-export async function mutateCampaignBudget(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  budgetId: string,
-  amountMicros: number,
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  return customer.campaignBudgets.update([
-    {
-      resource_name: `customers/${customerId}/campaignBudgets/${budgetId}`,
-      amount_micros: amountMicros,
-    },
-  ]);
-}
-
-export async function createSearchCampaign(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  name: string,
-  dailyBudgetMicros: number,
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  const budgetResourceName = ResourceNames.campaignBudget(customerId, '-1');
-  return customer.mutateResources([
-    {
-      entity: 'campaign_budget',
-      operation: 'create',
-      resource: {
-        resource_name: budgetResourceName,
-        name: `${name} Budget`,
-        delivery_method: enums.BudgetDeliveryMethod.STANDARD,
-        explicitly_shared: false,
-        amount_micros: dailyBudgetMicros,
-      },
-    },
-    {
-      entity: 'campaign',
-      operation: 'create',
-      resource: {
-        name,
-        advertising_channel_type: enums.AdvertisingChannelType.SEARCH,
-        status: enums.CampaignStatus.PAUSED,
-        manual_cpc: { enhanced_cpc_enabled: false },
-        campaign_budget: budgetResourceName,
-        contains_eu_political_advertising: enums.EuPoliticalAdvertisingStatus.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING,
-        network_settings: {
-          target_google_search: true,
-          target_search_network: true,
-          target_content_network: false,
-          target_partner_search_network: false,
-        },
-      },
-    },
-  ] as any);
-}
-
-export async function createDisplayCampaign(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  name: string,
-  dailyBudgetMicros: number,
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  const budgetResourceName = ResourceNames.campaignBudget(customerId, '-1');
-  return customer.mutateResources([
-    {
-      entity: 'campaign_budget',
-      operation: 'create',
-      resource: {
-        resource_name: budgetResourceName,
-        name: `${name} Budget`,
-        delivery_method: enums.BudgetDeliveryMethod.STANDARD,
-        explicitly_shared: false,
-        amount_micros: dailyBudgetMicros,
-      },
-    },
-    {
-      entity: 'campaign',
-      operation: 'create',
-      resource: {
-        name,
-        advertising_channel_type: enums.AdvertisingChannelType.DISPLAY,
-        status: enums.CampaignStatus.PAUSED,
-        manual_cpc: { enhanced_cpc_enabled: false },
-        campaign_budget: budgetResourceName,
-        contains_eu_political_advertising: enums.EuPoliticalAdvertisingStatus.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING,
-      },
-    },
-  ] as any);
-}
-
-export async function createPerformanceMaxCampaign(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  name: string,
-  dailyBudgetMicros: number,
-  brandAssets?: { businessNameAssetId?: string; logoAssetId?: string },
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  const budgetResourceName = ResourceNames.campaignBudget(customerId, '-1');
-  const campaignResourceName = ResourceNames.campaign(customerId, '-2');
-  return customer.mutateResources([
-    {
-      entity: 'campaign_budget',
-      operation: 'create',
-      resource: {
-        resource_name: budgetResourceName,
-        name: `${name} Budget`,
-        delivery_method: enums.BudgetDeliveryMethod.STANDARD,
-        explicitly_shared: false,
-        amount_micros: dailyBudgetMicros,
-      },
-    },
-    {
-      entity: 'campaign',
-      operation: 'create',
-      resource: {
-        resource_name: campaignResourceName,
-        name,
-        advertising_channel_type: enums.AdvertisingChannelType.PERFORMANCE_MAX,
-        status: enums.CampaignStatus.PAUSED,
-        campaign_budget: budgetResourceName,
-        maximize_conversion_value: {},
-        contains_eu_political_advertising: enums.EuPoliticalAdvertisingStatus.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING,
-      },
-    },
-    ...(brandAssets?.businessNameAssetId ? [{
-      entity: 'campaign_asset',
-      operation: 'create',
-      resource: {
-        campaign: campaignResourceName,
-        asset: ResourceNames.asset(customerId, brandAssets.businessNameAssetId),
-        field_type: enums.AssetFieldType.BUSINESS_NAME,
-      },
-    }] : []),
-    ...(brandAssets?.logoAssetId ? [{
-      entity: 'campaign_asset',
-      operation: 'create',
-      resource: {
-        campaign: campaignResourceName,
-        asset: ResourceNames.asset(customerId, brandAssets.logoAssetId),
-        field_type: enums.AssetFieldType.LOGO,
-      },
-    }] : []),
-  ] as any);
-}
-
-export async function createAdGroup(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  campaignId: string,
-  name: string,
-  cpcBidMicros: number,
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  return customer.adGroups.create([
-    {
-      name,
-      campaign: ResourceNames.campaign(customerId, campaignId),
-      status: enums.AdGroupStatus.PAUSED,
-      type: enums.AdGroupType.SEARCH_STANDARD,
-      cpc_bid_micros: cpcBidMicros,
-    } as any,
-  ]);
-}
-
-export async function createDisplayAdGroup(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  campaignId: string,
-  name: string,
-  cpcBidMicros: number,
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  return customer.adGroups.create([
-    {
-      name,
-      campaign: ResourceNames.campaign(customerId, campaignId),
-      status: enums.AdGroupStatus.PAUSED,
-      type: enums.AdGroupType.DISPLAY_STANDARD,
-      cpc_bid_micros: cpcBidMicros,
-    } as any,
-  ]);
-}
-
-export async function createCampaignTargeting(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  campaignId: string,
-  targeting: {
-    locationCriterionIds: string[];
-    languageCriterionIds: string[];
-  },
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  return customer.campaignCriteria.create([
-    ...targeting.locationCriterionIds.map((criterionId) => ({
-      campaign: ResourceNames.campaign(customerId, campaignId),
-      location: {
-        geo_target_constant: ResourceNames.geoTargetConstant(criterionId),
-      },
-    }) as any),
-    ...targeting.languageCriterionIds.map((criterionId) => ({
-      campaign: ResourceNames.campaign(customerId, campaignId),
-      language: {
-        language_constant: ResourceNames.languageConstant(criterionId),
-      },
-    }) as any),
-  ]);
-}
-
-export async function mutateBiddingStrategy(
-  cfg: MetaAdsConfig,
-  customerId: string,
-  campaignId: string,
-  strategy: { type: string; targetCpaMicros?: number; targetRoas?: number },
-): Promise<unknown> {
-  const customer = getCustomer(cfg, customerId);
-  const resource: Record<string, any> = {
-    resource_name: `customers/${customerId}/campaigns/${campaignId}`,
-  };
-  if (strategy.type === 'TARGET_CPA') {
-    resource.target_cpa = { target_cpa_micros: strategy.targetCpaMicros };
-  } else if (strategy.type === 'TARGET_ROAS') {
-    resource.target_roas = { target_roas: strategy.targetRoas };
-  } else if (strategy.type === 'MAXIMIZE_CONVERSIONS') {
-    resource.maximize_conversions = {};
-  } else if (strategy.type === 'MAXIMIZE_CONVERSION_VALUE') {
-    resource.maximize_conversion_value = {};
-  } else if (strategy.type === 'MANUAL_CPC') {
-    resource.manual_cpc = { enhanced_cpc_enabled: false };
-  } else if (strategy.type === 'ENHANCED_CPC') {
-    resource.manual_cpc = { enhanced_cpc_enabled: true };
+export async function getCampaigns(cfg: MetaAdsConfig, adAccountId: string, statusFilter?: string[]): Promise<Campaign[]> {
+  const params: Record<string, unknown> = { fields: CAMPAIGN_FIELDS, limit: '200' };
+  if (statusFilter?.length) {
+    params['filtering'] = [{ field: 'effective_status', operator: 'IN', value: statusFilter }];
   }
-  return customer.campaigns.update([resource]);
+  return getAll<Campaign>(cfg, `/act_${adAccountId}/campaigns`, params);
+}
+
+export async function getCampaign(cfg: MetaAdsConfig, campaignId: string): Promise<Campaign> {
+  return get<Campaign>(cfg, `/${campaignId}`, { fields: CAMPAIGN_FIELDS });
+}
+
+export interface CreateCampaignParams {
+  name: string;
+  objective: string;
+  status?: string;
+  special_ad_categories?: string[];
+  daily_budget?: string;
+  lifetime_budget?: string;
+  bid_strategy?: string;
+  spend_cap?: string;
+  start_time?: string;
+  stop_time?: string;
+}
+
+export async function createCampaign(cfg: MetaAdsConfig, adAccountId: string, params: CreateCampaignParams): Promise<{ id: string }> {
+  return post<{ id: string }>(cfg, `/act_${adAccountId}/campaigns`, {
+    ...params,
+    status: params.status || 'PAUSED',
+    special_ad_categories: params.special_ad_categories || ['NONE'],
+  });
+}
+
+export async function updateCampaign(cfg: MetaAdsConfig, campaignId: string, params: Record<string, unknown>): Promise<{ success: boolean }> {
+  return post<{ success: boolean }>(cfg, `/${campaignId}`, params);
 }
