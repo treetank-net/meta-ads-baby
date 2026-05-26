@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import { readHistory, getHistoryStats } from '../history.js';
 
-export function registerHistoryReadTools(server: McpServer, cfg: AdsConfig) {
+export function registerHistoryReadTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
     'get_mutation_history',
     'Browse past mutation operations. Shows what was done, when, with what params (including asset IDs, image URLs, headlines, etc.). Use to replicate previous campaigns or find previously used assets/logos.',

@@ -5,7 +5,7 @@ import { getConfigDir } from './config.js';
 export interface HistoryEntry {
   timestamp: string;
   action: string;
-  customerId: string;
+  adAccountId: string;
   preview: string;
   params: Record<string, unknown>;
   success: boolean;
@@ -31,21 +31,21 @@ function extractAssetIds(result: unknown): string[] {
   if (!result || typeof result !== 'object') return [];
   const ids: string[] = [];
   const str = JSON.stringify(result);
-  const re = /customers\/\d+\/assets\/(\d+)/g;
+  const re = /"id"\s*:\s*"(\d+)"/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(str)) !== null) ids.push(m[1]);
   return ids;
 }
 
-function extractCustomerId(params: Record<string, unknown>): string {
-  return String(params.customer_id || params.customerId || '');
+function extractAdAccountId(params: Record<string, unknown>): string {
+  return String(params.ad_account_id || params.adAccountId || '');
 }
 
 export function recordSuccess(action: string, params: Record<string, unknown>, preview: string, apiResult: unknown, batchId?: string): void {
   logMutation({
     timestamp: new Date().toISOString(),
     action,
-    customerId: extractCustomerId(params),
+    adAccountId: extractAdAccountId(params),
     preview,
     params,
     success: true,
@@ -59,7 +59,7 @@ export function recordFailure(action: string, params: Record<string, unknown>, p
   logMutation({
     timestamp: new Date().toISOString(),
     action,
-    customerId: extractCustomerId(params),
+    adAccountId: extractAdAccountId(params),
     preview,
     params,
     success: false,
@@ -69,7 +69,7 @@ export function recordFailure(action: string, params: Record<string, unknown>, p
 }
 
 export interface HistoryFilter {
-  customerId?: string;
+  adAccountId?: string;
   action?: string;
   since?: string;
   until?: string;
@@ -90,7 +90,7 @@ export function readHistory(filter: HistoryFilter = {}): HistoryEntry[] {
     try { entries.push(JSON.parse(line)); } catch {}
   }
 
-  if (filter.customerId) entries = entries.filter((e) => e.customerId === filter.customerId);
+  if (filter.adAccountId) entries = entries.filter((e) => e.adAccountId === filter.adAccountId);
   if (filter.action) entries = entries.filter((e) => e.action === filter.action);
   if (filter.since) entries = entries.filter((e) => e.timestamp >= filter.since!);
   if (filter.until) entries = entries.filter((e) => e.timestamp <= filter.until!);
@@ -101,7 +101,7 @@ export function readHistory(filter: HistoryFilter = {}): HistoryEntry[] {
   return entries.slice(0, limit);
 }
 
-export function getHistoryStats(customerId?: string): {
+export function getHistoryStats(adAccountId?: string): {
   total: number;
   succeeded: number;
   failed: number;
@@ -109,7 +109,7 @@ export function getHistoryStats(customerId?: string): {
   recentActions: string[];
   usedAssetIds: string[];
 } {
-  const all = readHistory({ customerId, limit: 10000 });
+  const all = readHistory({ adAccountId, limit: 10000 });
   const byAction: Record<string, number> = {};
   const assetSet = new Set<string>();
   let succeeded = 0;

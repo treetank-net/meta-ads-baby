@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import { executeGaql } from '../client.js';
 import { createToken } from '../confirm.js';
-import { normalizeCustomerId, normalizeResourceId } from '../validation.js';
+import { normalizeAdAccountId, normalizeResourceId } from '../validation.js';
 import { formatError } from '../errors.js';
 import {
   MAX_KEYWORDS_PER_MUTATION,
@@ -29,12 +29,12 @@ import {
   validateAssetPlacement,
 } from './write-helpers.js';
 
-export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void {
+export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'prepare_responsive_search_ad',
     'Prepare creation of a paused responsive search ad under an existing ad group. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       ad_group_id: z.string().describe('Existing ad group ID'),
       headlines: z.array(z.string().min(1).max(30)).min(3).max(15).describe('3-15 responsive search ad headlines, max 30 chars each'),
       descriptions: z.array(z.string().min(1).max(90)).min(2).max(4).describe('2-4 responsive search ad descriptions, max 90 chars each'),
@@ -44,7 +44,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
     async ({ customer_id, ad_group_id, headlines, descriptions, final_url, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedAdGroupId = normalizeResourceId(ad_group_id);
       const preview = [
         `Create paused responsive search ad in ad group ${normalizedAdGroupId}, account ${normalizedCustomerId}`,
@@ -67,7 +67,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
     'prepare_responsive_display_ad',
     'Prepare creation of a paused responsive display ad under an existing ad group. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       ad_group_id: z.string().describe('Existing ad group ID'),
       business_name: z.string().min(1).max(25).describe('Business name, max 25 chars'),
       headlines: z.array(z.string().min(1).max(30)).min(1).max(5).describe('1-5 short headlines, max 30 chars each'),
@@ -94,7 +94,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
     }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedAdGroupId = normalizeResourceId(ad_group_id);
       const normalizedMarketingImageAssetIds = marketing_image_asset_ids.map(normalizeResourceId);
       const normalizedSquareMarketingImageAssetIds = square_marketing_image_asset_ids.map(normalizeResourceId);
@@ -139,7 +139,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
     'prepare_clone_entity',
     'Prepare cloning a supported Google Ads entity as paused. Currently supports entity="ad" for responsive search/display ads.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       entity: cloneEntitySchema.describe('Entity kind to clone. Currently only ad is implemented.'),
       source_ad_id: z.string().optional().describe('Source ad ID. Use this or source_ad_group_ad_resource_name for entity=ad.'),
       source_ad_group_ad_resource_name: z.string().optional().describe('Full source ad group ad resource name, e.g. customers/123/adGroupAds/456~789. Preferred for entity=ad.'),
@@ -180,7 +180,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
       if (!filter) return validationResult('Provide source_ad_id or source_ad_group_ad_resource_name.');
 
       try {
-        const normalizedCustomerId = normalizeCustomerId(customer_id);
+        const normalizedCustomerId = normalizeAdAccountId(customer_id);
         const rows = await executeGaql(cfg, normalizedCustomerId, buildCloneAdQuery(filter)) as any[];
         if (rows.length === 0) return validationResult('Source ad not found.');
         if (rows.length > 1) return validationResult('More than one source ad matched. Retry with source_ad_group_ad_resource_name.');
@@ -278,7 +278,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
     'prepare_keywords',
     'Prepare creation of enabled search keywords in an existing ad group. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       ad_group_id: z.string().describe('Existing Search ad group ID'),
       keywords: z.array(keywordSchema).min(1).max(MAX_KEYWORDS_PER_MUTATION).describe('Keywords to add, each with text and match_type BROAD, PHRASE, or EXACT'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -286,7 +286,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
     async ({ customer_id, ad_group_id, keywords, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedAdGroupId = normalizeResourceId(ad_group_id);
       const normalizedKeywords = keywords.map((keyword) => ({
         text: keyword.text.trim(),
@@ -313,7 +313,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
     'prepare_negative_keywords',
     'Prepare creation of negative keywords at campaign or ad group level. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       level: negativeKeywordLevelSchema.describe('Where to add negatives: campaign or ad_group'),
       campaign_id: z.string().optional().describe('Campaign ID, required when level=campaign'),
       ad_group_id: z.string().optional().describe('Ad group ID, required when level=ad_group'),
@@ -325,7 +325,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: AdsConfig): void 
       if (customerError) return customerError;
       if (level === 'campaign' && !campaign_id) return validationResult('campaign_id is required when level=campaign.');
       if (level === 'ad_group' && !ad_group_id) return validationResult('ad_group_id is required when level=ad_group.');
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = campaign_id ? normalizeResourceId(campaign_id) : undefined;
       const normalizedAdGroupId = ad_group_id ? normalizeResourceId(ad_group_id) : undefined;
       const targetId = level === 'campaign' ? normalizedCampaignId : normalizedAdGroupId;

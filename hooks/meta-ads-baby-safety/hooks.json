@@ -1,9 +1,9 @@
 {
-  "description": "Google Ads Baby safety gate. Blocks confirm_mutation until the user replies with the safe word.",
+  "description": "Meta Ads Baby safety gate. Blocks confirm_mutation until the user replies with the safe word.",
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "google-ads__(?:prepare_|confirm_)",
+        "matcher": "meta-ads__(?:prepare_|confirm_)",
         "hooks": [
           {
             "type": "command",

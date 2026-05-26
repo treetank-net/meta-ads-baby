@@ -8,7 +8,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const bundle = join(root, 'server', 'bundle.cjs');
 const pkgPath = join(root, 'package.json');
 
-const REPO_RAW = 'https://raw.githubusercontent.com/treetank-net/google-ads-baby/master';
+const REPO_RAW = 'https://raw.githubusercontent.com/treetank-net/meta-ads-baby/master';
 
 function localVersion() {
   try {
@@ -30,7 +30,7 @@ async function autoUpdate() {
     const remote = await res.json();
     if ((remote.version || '0.0.0') === localVersion()) return;
 
-    process.stderr.write(`Updating google-ads-baby ${localVersion()} → ${remote.version}...\n`);
+    process.stderr.write(`Updating meta-ads-baby ${localVersion()} → ${remote.version}...\n`);
 
     await download('server/bundle.cjs', bundle);
     await download('package.json', pkgPath);

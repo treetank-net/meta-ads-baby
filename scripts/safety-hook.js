@@ -5,7 +5,7 @@ import { homedir, tmpdir } from 'os';
 
 const mode = process.argv[2];
 if (!mode) {
-  console.error('Usage: google-ads-baby-safety-hook <pre-tool|user-submit> [dataDir]');
+  console.error('Usage: meta-ads-baby-safety-hook <pre-tool|user-submit> [dataDir]');
   process.exit(2);
 }
 
@@ -19,12 +19,12 @@ function validArg(v) {
 }
 
 const stateDir = validArg(process.argv[3])
-  || validEnv('GOOGLE_ADS_BABY_DATA')
-  || join(homedir() || tmpdir(), '.google-ads-baby');
+  || validEnv('META_ADS_BABY_DATA')
+  || join(homedir() || tmpdir(), '.meta-ads-baby');
 mkdirSync(stateDir, { recursive: true });
 
-const STATE_FILE = join(stateDir, '.gads-confirm-state');
-const SAFE_WORD_FILE = join(stateDir, '.gads-safe-word');
+const STATE_FILE = join(stateDir, '.mads-confirm-state');
+const SAFE_WORD_FILE = join(stateDir, '.mads-safe-word');
 const CONFIG_FILE = join(stateDir, 'config.json');
 
 function readConfig(key) {
@@ -53,9 +53,9 @@ function writeState(state) {
 
 const savedSafetyLevel = readConfig('safetyLevel');
 const savedStateTtl = readConfig('confirmStateTtlSeconds');
-const safetyLevel = process.env.GOOGLE_ADS_SAFETY_LEVEL || savedSafetyLevel || 'standard';
+const safetyLevel = process.env.META_ADS_SAFETY_LEVEL || savedSafetyLevel || 'standard';
 
-let stateTtl = parseInt(process.env.GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS || savedStateTtl, 10);
+let stateTtl = parseInt(process.env.META_ADS_CONFIRM_STATE_TTL_SECONDS || savedStateTtl, 10);
 if (isNaN(stateTtl)) {
   if (safetyLevel === 'strict') stateTtl = 300;
   else if (safetyLevel === 'off') stateTtl = 0;
@@ -106,15 +106,15 @@ function run() {
   if (mode === 'pre-tool') {
     const toolName = extractToolName();
 
-    if (/google[-_]ads__prepare_/.test(toolName)) {
+    if (/meta[-_]ads__prepare_/.test(toolName)) {
       writeState('pending');
       const safeWord = extractSafeWord();
       if (safeWord) writeFileSync(SAFE_WORD_FILE, safeWord);
       process.exit(0);
     }
 
-    if (/google[-_]ads__confirm_(all_)?mutation/.test(toolName)) {
-      if (safetyLevel === 'off' || process.env.GOOGLE_ADS_YOLO === '1') {
+    if (/meta[-_]ads__confirm_(all_)?mutation/.test(toolName)) {
+      if (safetyLevel === 'off' || process.env.META_ADS_YOLO === '1') {
         try { unlinkSync(STATE_FILE); } catch {}
         process.exit(0);
       }

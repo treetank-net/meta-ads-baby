@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import { startAuthFlow } from '../auth.js';
 
 const REPO_RAW = 'https://raw.githubusercontent.com/treetank-net/google-ads-baby/master';
@@ -24,7 +24,7 @@ async function downloadFile(remotePath: string, localPath: string): Promise<bool
   return true;
 }
 
-export function registerAuthTools(server: McpServer, cfg: AdsConfig) {
+export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
     'setup_google_auth',
     'Start Google OAuth flow. Returns a URL for the user to click. After authorization the refresh token is saved automatically.',

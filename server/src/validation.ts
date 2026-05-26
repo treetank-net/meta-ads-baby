@@ -1,11 +1,11 @@
-export function normalizeCustomerId(customerId: string): string {
-  return customerId.trim().replace(/-/g, '');
+export function normalizeAdAccountId(adAccountId: string): string {
+  return adAccountId.trim().replace(/^act_/, '').replace(/-/g, '');
 }
 
-export function requireCustomerId(customerId: string): string | null {
-  const normalized = normalizeCustomerId(customerId);
-  if (!normalized) return 'Missing customer_id. Call list_accounts and use the client account ID, not the MCC.';
-  if (!/^\d+$/.test(normalized)) return `Invalid customer_id "${customerId}". Use digits only or hyphenated format.`;
+export function requireAdAccountId(adAccountId: string): string | null {
+  const normalized = normalizeAdAccountId(adAccountId);
+  if (!normalized) return 'Missing ad_account_id. Call list_ad_accounts and use the ad account ID.';
+  if (!/^\d+$/.test(normalized)) return `Invalid ad_account_id "${adAccountId}". Use digits only, with or without act_ prefix.`;
   return null;
 }
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import type { PendingMutation } from '../confirm.js';
 import { confirmPendingSafeWord, consumeConfirmState, consumeToken, getPendingToken, getTokenTtlSeconds, listPending } from '../confirm.js';
 import { recordFailure } from '../history.js';
@@ -8,7 +8,7 @@ import { CODEX_HOOK_INSTALL_COMMAND } from './write-schemas.js';
 import { safetyHookNotice } from './write-helpers.js';
 import { executeMutation, formatMutationError } from './write-executor.js';
 
-export function registerConfirmTools(server: McpServer, cfg: AdsConfig): void {
+export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'get_safety_setup',
     'Explain the current mutation safety model and how to install Codex hooks if plugin-local hooks are not active.',
@@ -20,8 +20,8 @@ export function registerConfirmTools(server: McpServer, cfg: AdsConfig): void {
           safetyLevel: cfg.safetyLevel,
           mutationTokenTtlSeconds: getTokenTtlSeconds(),
           manualSafeWordConfirmation: {
-            enabled: process.env['GOOGLE_ADS_ENABLE_MANUAL_CONFIRM'] === '1',
-            env: 'GOOGLE_ADS_ENABLE_MANUAL_CONFIRM',
+            enabled: process.env['META_ADS_ENABLE_MANUAL_CONFIRM'] === '1',
+            env: 'META_ADS_ENABLE_MANUAL_CONFIRM',
             purpose: 'Test-only fallback for confirm_safe_word. Keep this set to 0/unset outside local testing so normal confirmation relies on user-message hooks.',
           },
           serverSideProtection: 'Every write requires a prepare_* token. Tokens are server-side, one-shot, and time-limited.',
@@ -39,7 +39,7 @@ export function registerConfirmTools(server: McpServer, cfg: AdsConfig): void {
 
   server.tool(
     'confirm_safe_word',
-    'Test-only fallback for confirming a safe word when GOOGLE_ADS_ENABLE_MANUAL_CONFIRM=1. Normal use should rely on user-message hooks.',
+    'Test-only fallback for confirming a safe word when META_ADS_ENABLE_MANUAL_CONFIRM=1. Normal use should rely on user-message hooks.',
     {
       token: z.string().describe('Confirmation token from prepare_* response'),
       safe_word: z.string().min(1).describe('Exact safe word shown in prepare_* response'),

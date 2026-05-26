@@ -2,7 +2,7 @@ import http from 'http';
 import { randomBytes } from 'crypto';
 import { exec } from 'child_process';
 import { saveConfig } from './config.js';
-import type { AdsConfig } from './config.js';
+import type { MetaAdsConfig } from './config.js';
 import { GoogleAdsApi } from 'google-ads-api';
 
 function openBrowser(url: string) {
@@ -18,7 +18,7 @@ interface OAuthState {
   stateParam: string;
   authUrl: string;
   resolved: boolean;
-  cfg: AdsConfig;
+  cfg: MetaAdsConfig;
 }
 
 let oauthState: OAuthState | null = null;
@@ -43,7 +43,7 @@ async function exchangeCodeForTokens(
   return data.refresh_token;
 }
 
-async function listAccessibleAccounts(cfg: AdsConfig): Promise<Array<{ id: string; name: string; manager?: boolean }>> {
+async function listAccessibleAccounts(cfg: MetaAdsConfig): Promise<Array<{ id: string; name: string; manager?: boolean }>> {
   const api = new GoogleAdsApi({
     client_id: cfg.clientId, client_secret: cfg.clientSecret, developer_token: cfg.developerToken,
   });
@@ -302,7 +302,7 @@ document.getElementById('btn-go').onclick = async () => {
 };
 </script></body></html>`;
 
-export function startAuthFlow(cfg: AdsConfig): { url: string; shortUrl: string; port: number } {
+export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: string; port: number } {
   if (oauthState?.server) oauthState.server.close();
 
   const stateParam = randomBytes(16).toString('hex');
@@ -394,11 +394,11 @@ export function startAuthFlow(cfg: AdsConfig): { url: string; shortUrl: string; 
         cfg.safetyLevel = safetyLevel;
         cfg.mutationTokenTtlSeconds = mutationTokenTtlSeconds;
         cfg.confirmStateTtlSeconds = confirmStateTtlSeconds;
-        process.env['GOOGLE_ADS_SAFETY_LEVEL'] = safetyLevel;
-        if (mutationTokenTtlSeconds) process.env['GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS'] = mutationTokenTtlSeconds;
-        else delete process.env['GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS'];
-        if (confirmStateTtlSeconds) process.env['GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS'] = confirmStateTtlSeconds;
-        else delete process.env['GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS'];
+        process.env['META_ADS_SAFETY_LEVEL'] = safetyLevel;
+        if (mutationTokenTtlSeconds) process.env['META_ADS_MUTATION_TOKEN_TTL_SECONDS'] = mutationTokenTtlSeconds;
+        else delete process.env['META_ADS_MUTATION_TOKEN_TTL_SECONDS'];
+        if (confirmStateTtlSeconds) process.env['META_ADS_CONFIRM_STATE_TTL_SECONDS'] = confirmStateTtlSeconds;
+        else delete process.env['META_ADS_CONFIRM_STATE_TTL_SECONDS'];
         oauthState!.resolved = true;
         json(200, { ok: true });
         cleanup();

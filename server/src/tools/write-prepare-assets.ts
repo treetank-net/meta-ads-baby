@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { readFileSync, statSync } from 'fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import { createToken } from '../confirm.js';
-import { normalizeCustomerId, normalizeResourceId } from '../validation.js';
+import { normalizeAdAccountId, normalizeResourceId } from '../validation.js';
 import {
   MAX_IMAGE_BYTES,
   MAX_CAMPAIGN_ASSETS_PER_MUTATION,
@@ -30,12 +30,12 @@ import {
   type ImageInfo,
 } from './write-helpers.js';
 
-export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): void {
+export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'prepare_image_asset_from_file',
     'Prepare upload of an image asset from a local file path. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       asset_name: z.string().min(1).max(255).describe('Name for the new image asset'),
       file_path: z.string().min(1).describe('Absolute or relative local file path'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -43,7 +43,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, asset_name, file_path, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       let info: ImageInfo | null = null;
       try {
         const st = statSync(file_path);
@@ -74,7 +74,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_image_asset_from_url',
     'Prepare upload of an image asset from a public URL. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       asset_name: z.string().min(1).max(255).describe('Name for the new image asset'),
       image_url: z.string().url().describe('Public image URL'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -82,7 +82,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, asset_name, image_url, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       let info: ImageInfo | null = null;
       let contentType = 'unknown';
       try {
@@ -116,7 +116,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_sitelink_assets',
     'Prepare creation of sitelink assets. After creation, link them to a campaign via prepare_campaign_assets with field_type SITELINK. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       sitelinks: z.array(z.object({
         link_text: z.string().min(1).max(25).describe('Sitelink text shown in the ad, max 25 chars'),
         description1: z.string().max(35).default('').describe('First description line, max 35 chars'),
@@ -128,7 +128,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, sitelinks, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const preview = [
         `Create ${sitelinks.length} sitelink asset(s) on account ${normalizedCustomerId}`,
         ...sitelinks.map((s) => `- "${s.link_text}" → ${s.final_url}`),
@@ -150,14 +150,14 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_callout_assets',
     'Prepare creation of callout assets (short USP phrases like "Free shipping", "24/7 support"). After creation, link them to a campaign via prepare_campaign_assets with field_type CALLOUT. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       callouts: z.array(z.string().min(1).max(25)).min(1).max(20).describe('Callout texts, max 25 chars each'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word'),
     },
     async ({ customer_id, callouts, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const preview = [
         `Create ${callouts.length} callout asset(s) on account ${normalizedCustomerId}`,
         ...callouts.map((c) => `- "${c}"`),
@@ -174,7 +174,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_call_asset',
     'Prepare creation of a call (phone) asset for click-to-call extensions. After creation, link it to a campaign via prepare_campaign_assets with field_type CALL. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       country_code: z.string().min(2).max(2).describe('Two-letter country code, e.g. PL, US, DE'),
       phone_number: z.string().min(5).max(25).describe('Phone number in local or international format'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word'),
@@ -182,7 +182,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, country_code, phone_number, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const preview = `Create call asset +${country_code} ${phone_number} on account ${normalizedCustomerId}`;
       const mutation = createToken('call_asset_create', {
         customer_id: normalizedCustomerId,
@@ -197,7 +197,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_structured_snippet_assets',
     'Prepare creation of structured snippet assets (e.g. header "Types" with values "Sedan, SUV, Truck"). After creation, link to a campaign via prepare_campaign_assets with field_type STRUCTURED_SNIPPET. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       header: z.string().min(1).describe('Snippet header — must be a predefined Google Ads header, e.g. "Brands", "Types", "Destinations", "Courses", "Services", "Styles", "Amenities"'),
       values: z.array(z.string().min(1).max(25)).min(3).max(10).describe('Snippet values, 3-10 items, max 25 chars each'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word'),
@@ -205,7 +205,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, header, values, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const preview = [
         `Create structured snippet asset on account ${normalizedCustomerId}`,
         `Header: ${header}`,
@@ -224,7 +224,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_campaign_assets',
     'Prepare linking existing assets (images, sitelinks, callouts, etc.) to a campaign. Use this to add image extensions to Search campaigns. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_id: z.string().describe('Existing campaign ID'),
       assets: z.array(campaignAssetSchema).min(1).max(MAX_CAMPAIGN_ASSETS_PER_MUTATION).describe('Assets to link to the campaign'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -232,7 +232,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, campaign_id, assets, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const normalizedAssets = assets.map((asset) => ({
         asset_id: normalizeResourceId(asset.asset_id),
@@ -265,7 +265,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_ad_group_assets',
     'Prepare linking existing assets (images, sitelinks, callouts, etc.) to an ad group. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       ad_group_id: z.string().describe('Existing ad group ID'),
       assets: z.array(adGroupAssetSchema).min(1).max(MAX_CAMPAIGN_ASSETS_PER_MUTATION).describe('Assets to link to the ad group'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -273,7 +273,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, ad_group_id, assets, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedAdGroupId = normalizeResourceId(ad_group_id);
       const normalizedAssets = assets.map((asset) => ({
         asset_id: normalizeResourceId(asset.asset_id),
@@ -306,7 +306,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_asset_group',
     'Prepare creation of a paused Performance Max asset group under an existing campaign. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_id: z.string().describe('Existing Performance Max campaign ID'),
       asset_group_name: z.string().min(1).describe('New asset group name'),
       final_urls: z.array(z.string().url()).min(1).max(20).describe('Landing page final URLs for the asset group'),
@@ -319,7 +319,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, campaign_id, asset_group_name, final_urls, assets, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const normalizedAssets = assets.map((asset) => ({
         asset_id: normalizeResourceId(asset.asset_id),
@@ -363,7 +363,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_asset_group_assets',
     'Prepare linking existing assets to a Performance Max asset group. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       asset_group_id: z.string().describe('Existing asset group ID'),
       assets: z.array(z.object({
         asset_id: z.string().describe('Existing asset ID'),
@@ -374,7 +374,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, asset_group_id, assets, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedAssetGroupId = normalizeResourceId(asset_group_id);
       const normalizedAssets = assets.map((asset) => ({
         asset_id: normalizeResourceId(asset.asset_id),
@@ -410,7 +410,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_asset_group_signals',
     'Prepare linking asset group signals to a Performance Max asset group. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       asset_group_id: z.string().describe('Existing asset group ID'),
       signals: z.array(assetGroupSignalSchema).min(1).max(MAX_ASSET_GROUP_SIGNALS_PER_MUTATION).describe('Signals to link to the asset group. Supported types: SEARCH_THEME and AUDIENCE.'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -418,7 +418,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, asset_group_id, signals, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedAssetGroupId = normalizeResourceId(asset_group_id);
       const normalizedSignals = signals.map((signal) => ({
         type: signal.type,
@@ -454,7 +454,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     'prepare_asset_group_listing_groups',
     'Prepare creation of Performance Max asset group listing group trees. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       asset_group_id: z.string().describe('Existing asset group ID'),
       nodes: z.array(listingGroupNodeSchema).min(2).max(MAX_ASSET_GROUP_LISTING_GROUP_NODES_PER_MUTATION).describe('Tree nodes in parent-first order. Node 0 must be the root subdivision.'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -462,7 +462,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: AdsConfig): vo
     async ({ customer_id, asset_group_id, nodes, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedAssetGroupId = normalizeResourceId(asset_group_id);
       if (nodes[0]?.type !== 'SUBDIVISION') {
         return validationResult('The first listing group node must be a SUBDIVISION root.');

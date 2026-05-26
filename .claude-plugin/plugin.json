@@ -1,6 +1,6 @@
 {
-  "name": "google-ads-baby",
-  "description": "Google Ads campaign management MCP server with two-phase safety confirmations. Read campaigns, adjust budgets, pause/enable — every mutation requires explicit user approval. Feedback & bug reports: jmarianski@trans.eu",
+  "name": "meta-ads-baby",
+  "description": "Meta (Facebook) Ads campaign management MCP server with two-phase safety confirmations. Read campaigns, adjust budgets, pause/enable — every mutation requires explicit user approval. Feedback & bug reports: jmarianski@trans.eu",
   "version": "0.9.0",
   "author": {
     "name": "Jacek Mariański",
@@ -8,23 +8,21 @@
     "url": "https://treetank.net"
   },
   "license": "MIT",
-  "keywords": ["google-ads", "mcp", "campaigns", "safety"],
+  "keywords": ["meta-ads", "facebook-ads", "mcp", "campaigns", "safety"],
   "hooks": "./hooks.json",
   "mcpServers": {
-    "google-ads": {
+    "meta-ads": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/start-mcp.js"],
       "env": {
         "CLAUDE_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}",
-        "GOOGLE_ADS_DEVELOPER_TOKEN": "${GOOGLE_ADS_DEVELOPER_TOKEN:-}",
-        "GOOGLE_ADS_MCC_ID": "${GOOGLE_ADS_MCC_ID:-}",
-        "GOOGLE_ADS_REFRESH_TOKEN": "${GOOGLE_ADS_REFRESH_TOKEN:-}",
-        "GOOGLE_ADS_CLIENT_ID": "${GOOGLE_ADS_CLIENT_ID:-}",
-        "GOOGLE_ADS_CLIENT_SECRET": "${GOOGLE_ADS_CLIENT_SECRET:-}",
-        "GOOGLE_ADS_SAFETY_LEVEL": "${GOOGLE_ADS_SAFETY_LEVEL:-}",
-        "GOOGLE_ADS_ENABLE_MANUAL_CONFIRM": "${GOOGLE_ADS_ENABLE_MANUAL_CONFIRM:-0}",
-        "GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS": "${GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS:-}",
-        "GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS": "${GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS:-}"
+        "META_ADS_ACCESS_TOKEN": "${META_ADS_ACCESS_TOKEN:-}",
+        "META_ADS_APP_ID": "${META_ADS_APP_ID:-}",
+        "META_ADS_APP_SECRET": "${META_ADS_APP_SECRET:-}",
+        "META_ADS_SAFETY_LEVEL": "${META_ADS_SAFETY_LEVEL:-}",
+        "META_ADS_ENABLE_MANUAL_CONFIRM": "${META_ADS_ENABLE_MANUAL_CONFIRM:-0}",
+        "META_ADS_MUTATION_TOKEN_TTL_SECONDS": "${META_ADS_MUTATION_TOKEN_TTL_SECONDS:-}",
+        "META_ADS_CONFIRM_STATE_TTL_SECONDS": "${META_ADS_CONFIRM_STATE_TTL_SECONDS:-}"
       }
     }
   }

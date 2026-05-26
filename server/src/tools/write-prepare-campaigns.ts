@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import { createToken } from '../confirm.js';
-import { normalizeCustomerId, normalizeResourceId } from '../validation.js';
+import { normalizeAdAccountId, normalizeResourceId } from '../validation.js';
 import {
   MAX_BUDGET_MICROS,
   MAX_CPC_MICROS,
@@ -21,7 +21,7 @@ import {
   validateAssetPlacement,
 } from './write-helpers.js';
 
-export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig): void {
+export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'prepare_campaign_status',
     'Prepare a campaign status change (enable/pause). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
@@ -35,7 +35,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     async ({ customer_id, campaign_id, campaign_name, new_status, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const action = new_status === 'ENABLED' ? 'Enable' : 'Pause';
       const preview = `${action} campaign "${campaign_name}" (ID: ${normalizedCampaignId}) on account ${normalizedCustomerId}`;
@@ -55,7 +55,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     async ({ customer_id, campaigns, safe_word }) => {
       const customerError = validateCustomer(customer_id);
       if (customerError) return customerError;
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaigns = campaigns.map((campaign) => ({
         campaign_id: normalizeResourceId(campaign.campaign_id),
         campaign_name: campaign.campaign_name,
@@ -95,7 +95,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
           }],
         };
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedBudgetId = normalizeResourceId(budget_id);
       const preview = `Change budget of campaign "${campaign_name}": ${current_budget_pln} -> ${new_budget_pln} PLN/day (account ${normalizedCustomerId})`;
       const mutation = createToken('budget_change', { customer_id: normalizedCustomerId, budget_id: normalizedBudgetId, amount_micros: newMicros }, preview, normalizeSafeWord(safe_word));
@@ -107,7 +107,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_search_campaign',
     'Prepare creation of a paused Search campaign with a daily budget. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_name: z.string().min(1).describe('New campaign name'),
       daily_budget_pln: z.number().positive().describe('Daily budget in PLN; capped by server safety limit'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -119,7 +119,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (budgetMicros > MAX_BUDGET_MICROS) {
         return validationResult(`Budget ${daily_budget_pln} PLN exceeds the safety limit (${MAX_BUDGET_MICROS / 1_000_000} PLN/day).`);
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const preview = `Create paused Search campaign "${campaign_name}" with budget ${daily_budget_pln} PLN/day on account ${normalizedCustomerId}`;
       const mutation = createToken('search_campaign_create', {
         customer_id: normalizedCustomerId,
@@ -134,7 +134,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_display_campaign',
     'Prepare creation of a paused Display campaign with a daily budget. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_name: z.string().min(1).describe('New campaign name'),
       daily_budget_pln: z.number().positive().describe('Daily budget in PLN; capped by server safety limit'),
       safe_word: safeWordSchema.describe('LLM-invented random confirmation word, e.g. "cactus" or "orbit"; must be shown to the user'),
@@ -146,7 +146,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (budgetMicros > MAX_BUDGET_MICROS) {
         return validationResult(`Budget ${daily_budget_pln} PLN exceeds the safety limit (${MAX_BUDGET_MICROS / 1_000_000} PLN/day).`);
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const preview = `Create paused Display campaign "${campaign_name}" with budget ${daily_budget_pln} PLN/day on account ${normalizedCustomerId}`;
       const mutation = createToken('display_campaign_create', {
         customer_id: normalizedCustomerId,
@@ -161,7 +161,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_performance_max_campaign',
     'Prepare creation of a paused Performance Max campaign with a daily budget. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_name: z.string().min(1).describe('New campaign name'),
       daily_budget_pln: z.number().positive().describe('Daily budget in PLN; capped by server safety limit'),
       business_name_asset_id: z.string().optional().describe('Optional existing TEXT asset ID for PMax brand guidelines business name'),
@@ -175,7 +175,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (budgetMicros > MAX_BUDGET_MICROS) {
         return validationResult(`Budget ${daily_budget_pln} PLN exceeds the safety limit (${MAX_BUDGET_MICROS / 1_000_000} PLN/day).`);
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedBusinessNameAssetId = business_name_asset_id ? normalizeResourceId(business_name_asset_id) : undefined;
       const normalizedLogoAssetId = logo_asset_id ? normalizeResourceId(logo_asset_id) : undefined;
       if (normalizedLogoAssetId) {
@@ -203,7 +203,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_ad_group',
     'Prepare creation of a paused Search ad group under an existing campaign. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_id: z.string().describe('Existing campaign ID'),
       ad_group_name: z.string().min(1).describe('New ad group name'),
       cpc_bid_pln: z.number().positive().describe('Max CPC bid in PLN; capped by server safety limit'),
@@ -216,7 +216,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (cpcMicros > MAX_CPC_MICROS) {
         return validationResult(`CPC bid ${cpc_bid_pln} PLN exceeds the safety limit (${MAX_CPC_MICROS / 1_000_000} PLN).`);
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const preview = `Create paused ad group "${ad_group_name}" in campaign ${normalizedCampaignId}, max CPC ${cpc_bid_pln} PLN, account ${normalizedCustomerId}`;
       const mutation = createToken('ad_group_create', {
@@ -233,7 +233,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_display_ad_group',
     'Prepare creation of a paused Display ad group under an existing campaign. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_id: z.string().describe('Existing campaign ID'),
       ad_group_name: z.string().min(1).describe('New ad group name'),
       cpc_bid_pln: z.number().positive().describe('Max CPC bid in PLN; capped by server safety limit'),
@@ -246,7 +246,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (cpcMicros > MAX_CPC_MICROS) {
         return validationResult(`CPC bid ${cpc_bid_pln} PLN exceeds the safety limit (${MAX_CPC_MICROS / 1_000_000} PLN).`);
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const preview = `Create paused Display ad group "${ad_group_name}" in campaign ${normalizedCampaignId}, max CPC ${cpc_bid_pln} PLN, account ${normalizedCustomerId}`;
       const mutation = createToken('display_ad_group_create', {
@@ -263,7 +263,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_campaign_targeting',
     'Prepare adding location and language targeting criteria to a campaign. Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_id: z.string().describe('Existing campaign ID'),
       location_criterion_ids: criterionIdListSchema.default([]).describe('Geo target constant criterion IDs, e.g. 2616 for Poland'),
       language_criterion_ids: criterionIdListSchema.default([]).describe('Language constant criterion IDs, e.g. 1045 for Polish, 1000 for English'),
@@ -278,7 +278,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (location_criterion_ids.length + language_criterion_ids.length > MAX_TARGETING_CRITERIA_PER_MUTATION) {
         return validationResult(`Too many targeting criteria. Max ${MAX_TARGETING_CRITERIA_PER_MUTATION}.`);
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const uniqueLocations = [...new Set(location_criterion_ids.map(normalizeResourceId))];
       const uniqueLanguages = [...new Set(language_criterion_ids.map(normalizeResourceId))];
@@ -301,7 +301,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_bidding_strategy',
     'Prepare changing the bidding strategy of a campaign (e.g. from Manual CPC to Target CPA or Target ROAS). Returns a preview and confirmation token.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_id: z.string().describe('Existing campaign ID'),
       strategy_type: z.enum(['TARGET_CPA', 'TARGET_ROAS', 'MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'MANUAL_CPC', 'ENHANCED_CPC']).describe('Bidding strategy type'),
       target_cpa_pln: z.number().positive().optional().describe('Target CPA in PLN (required for TARGET_CPA)'),
@@ -317,7 +317,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (strategy_type === 'TARGET_ROAS' && !target_roas) {
         return validationResult('target_roas is required for TARGET_ROAS strategy.');
       }
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const strategyDetails = strategy_type === 'TARGET_CPA'
         ? `Target CPA: ${target_cpa_pln} PLN`
@@ -340,7 +340,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
     'prepare_campaign_extensions',
     'Prepare batch creation of campaign extensions (sitelinks, callouts, call, structured snippets) AND link them to a campaign in one atomic operation. Can also link existing assets (images, logos). Single confirmation for everything.',
     {
-      customer_id: z.string().describe('Google Ads customer ID from list_accounts'),
+      customer_id: z.string().describe('Meta ad account ID from list_ad_accounts'),
       campaign_id: z.string().describe('Existing campaign ID'),
       sitelinks: z.array(z.object({
         link_text: z.string().min(1).max(25),
@@ -368,7 +368,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: AdsConfig):
       if (customerError) return customerError;
       const total = sitelinks.length + callouts.length + (call ? 1 : 0) + (structured_snippet ? 1 : 0) + existing_asset_links.length;
       if (total < 1) return validationResult('Provide at least one extension to create or link.');
-      const normalizedCustomerId = normalizeCustomerId(customer_id);
+      const normalizedCustomerId = normalizeAdAccountId(customer_id);
       const normalizedCampaignId = normalizeResourceId(campaign_id);
       const lines = [`Batch campaign extensions for campaign ${normalizedCampaignId}, account ${normalizedCustomerId}`];
       if (sitelinks.length) lines.push(`Sitelinks (${sitelinks.length}): ${sitelinks.map((s) => s.link_text).join(', ')}`);

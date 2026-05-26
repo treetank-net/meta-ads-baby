@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import { listAccounts, executeGaql, getCampaigns } from '../client.js';
 import { formatError } from '../errors.js';
-import { normalizeCustomerId, requireCustomerId } from '../validation.js';
+import { normalizeAdAccountId, requireAdAccountId } from '../validation.js';
 import {
   entitySchema,
   upperTokenSchema,
@@ -16,7 +16,7 @@ import {
   buildListQuery,
 } from './read-helpers.js';
 
-export function registerAccountReadTools(server: McpServer, cfg: AdsConfig) {
+export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
     'list_accounts',
     'List all Google Ads accounts under the MCC',
@@ -42,12 +42,12 @@ export function registerAccountReadTools(server: McpServer, cfg: AdsConfig) {
       days: z.enum(['7', '30']).default('30').describe('Lookback period'),
     },
     async ({ customer_id, days }) => {
-      const validationError = requireCustomerId(customer_id);
+      const validationError = requireAdAccountId(customer_id);
       if (validationError) {
         return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
       }
       try {
-        const rows = await getCampaigns(cfg, normalizeCustomerId(customer_id), Number(days) as 7 | 30);
+        const rows = await getCampaigns(cfg, normalizeAdAccountId(customer_id), Number(days) as 7 | 30);
         return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
       } catch (err) {
         return { content: [{ type: 'text', text: formatError(err) }] };
@@ -63,7 +63,7 @@ export function registerAccountReadTools(server: McpServer, cfg: AdsConfig) {
       query: z.string().describe('GAQL query (SELECT ... FROM ... WHERE ...)'),
     },
     async ({ customer_id, query }) => {
-      const validationError = requireCustomerId(customer_id);
+      const validationError = requireAdAccountId(customer_id);
       if (validationError) {
         return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
       }
@@ -73,7 +73,7 @@ export function registerAccountReadTools(server: McpServer, cfg: AdsConfig) {
         };
       }
       try {
-        const rows = await executeGaql(cfg, normalizeCustomerId(customer_id), query);
+        const rows = await executeGaql(cfg, normalizeAdAccountId(customer_id), query);
         return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
       } catch (err) {
         return { content: [{ type: 'text', text: formatError(err) }] };
@@ -96,13 +96,13 @@ export function registerAccountReadTools(server: McpServer, cfg: AdsConfig) {
       limit: z.number().int().min(1).max(200).default(50).describe('Maximum rows to return, capped at 200'),
     },
     async (input) => {
-      const validationError = requireCustomerId(input.customer_id);
+      const validationError = requireAdAccountId(input.customer_id);
       if (validationError) {
         return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
       }
       try {
         const query = buildListQuery(input);
-        const rows = await executeGaql(cfg, normalizeCustomerId(input.customer_id), query);
+        const rows = await executeGaql(cfg, normalizeAdAccountId(input.customer_id), query);
         return {
           content: [{
             type: 'text',
@@ -128,7 +128,7 @@ export function registerAccountReadTools(server: McpServer, cfg: AdsConfig) {
       ad_group_ad_resource_name: z.string().optional().describe('Full ad group ad resource name, e.g. customers/123/adGroupAds/456~789. Use this when available.'),
     },
     async (input) => {
-      const validationError = requireCustomerId(input.customer_id);
+      const validationError = requireAdAccountId(input.customer_id);
       if (validationError) {
         return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
       }
@@ -137,7 +137,7 @@ export function registerAccountReadTools(server: McpServer, cfg: AdsConfig) {
         return { content: [{ type: 'text', text: 'Error: Provide ad_id or ad_group_ad_resource_name.' }] };
       }
       try {
-        const customerId = normalizeCustomerId(input.customer_id);
+        const customerId = normalizeAdAccountId(input.customer_id);
         const adRows = await executeGaql(cfg, customerId, buildAdQuery(filter)) as any[];
         if (adRows.length === 0) {
           return { content: [{ type: 'text', text: 'Error: Ad not found for the provided ID/resource name.' }] };

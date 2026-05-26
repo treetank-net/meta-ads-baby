@@ -1,7 +1,7 @@
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import { executeGaql } from '../client.js';
 import { createToken, getTokenTtlSeconds } from '../confirm.js';
-import { normalizeCustomerId, normalizeResourceId, requireCustomerId } from '../validation.js';
+import { normalizeAdAccountId, normalizeResourceId, requireAdAccountId } from '../validation.js';
 import { MAX_IMAGE_BYTES, CODEX_HOOK_INSTALL_COMMAND } from './write-schemas.js';
 
 export function validationResult(message: string) {
@@ -9,7 +9,7 @@ export function validationResult(message: string) {
 }
 
 export function validateCustomer(customerId: string) {
-  const error = requireCustomerId(customerId);
+  const error = requireAdAccountId(customerId);
   return error ? validationResult(error) : null;
 }
 
@@ -203,7 +203,7 @@ export async function fetchImageForPreview(url: string): Promise<{ data: Buffer;
   return { data, contentType: response.headers.get('content-type') || 'unknown' };
 }
 
-export async function loadImageAssetInfo(cfg: AdsConfig, customerId: string, assetIds: string[]): Promise<Record<string, { width?: number; height?: number; url?: string }>> {
+export async function loadImageAssetInfo(cfg: MetaAdsConfig, customerId: string, assetIds: string[]): Promise<Record<string, { width?: number; height?: number; url?: string }>> {
   const uniqueIds = [...new Set(assetIds.map(normalizeResourceId))];
   if (!uniqueIds.length) return {};
   const rows = await executeGaql(cfg, customerId, `
@@ -245,7 +245,7 @@ export function validateAssetPlacement(label: string, assetIds: string[], info: 
   return null;
 }
 
-export function safetyHookNotice(cfg: AdsConfig, safeWord?: string) {
+export function safetyHookNotice(cfg: MetaAdsConfig, safeWord?: string) {
   if (cfg.safetyLevel === 'off') {
     return {
       clientHookGate: 'disabled',
@@ -266,7 +266,7 @@ export function safetyHookNotice(cfg: AdsConfig, safeWord?: string) {
   };
 }
 
-export function prepareResponse(cfg: AdsConfig, mutation: { token: string; safeWord: string }, preview: string) {
+export function prepareResponse(cfg: MetaAdsConfig, mutation: { token: string; safeWord: string }, preview: string) {
   return {
     content: [{
       type: 'text' as const,

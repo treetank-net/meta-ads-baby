@@ -1,13 +1,13 @@
 {
-  "name": "google-ads-baby",
+  "name": "meta-ads-baby",
   "version": "0.9.0",
   "type": "module",
-  "description": "Google Ads MCP server with two-phase safety confirmations.",
+  "description": "Meta (Facebook) Ads MCP server with two-phase safety confirmations.",
   "author": "Jacek Marianski <jmarianski@trans.eu>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/treetank-net/google-ads-baby"
+    "url": "https://github.com/treetank-net/meta-ads-baby"
   },
   "private": true
 }

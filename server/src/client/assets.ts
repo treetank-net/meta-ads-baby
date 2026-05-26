@@ -1,10 +1,10 @@
 import { enums, ResourceNames } from 'google-ads-api';
 import { readFileSync, statSync } from 'fs';
 import { getCustomer } from './core.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 
 export async function createAssetGroup(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   name: string,
@@ -38,7 +38,7 @@ export async function createAssetGroup(
 }
 
 export async function createAssetGroupAssets(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   assetGroupId: string,
   assets: Array<{ assetId: string; fieldType: string }>,
@@ -52,7 +52,7 @@ export async function createAssetGroupAssets(
 }
 
 export async function createAssetGroupSignals(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   assetGroupId: string,
   signals: Array<
@@ -78,7 +78,7 @@ export async function createAssetGroupSignals(
 }
 
 export async function createAssetGroupListingGroupFilters(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   assetGroupId: string,
   nodes: Array<{
@@ -115,7 +115,7 @@ export interface CampaignExtensionsInput {
 }
 
 export async function createCampaignExtensions(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   input: CampaignExtensionsInput,
@@ -216,7 +216,7 @@ export async function createCampaignExtensions(
 }
 
 export async function createSitelinkAssets(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   sitelinks: Array<{ linkText: string; description1: string; description2: string; finalUrl: string }>,
 ): Promise<unknown> {
@@ -234,7 +234,7 @@ export async function createSitelinkAssets(
 }
 
 export async function createCalloutAssets(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   callouts: string[],
 ): Promise<unknown> {
@@ -249,7 +249,7 @@ export async function createCalloutAssets(
 }
 
 export async function createCallAsset(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   countryCode: string,
   phoneNumber: string,
@@ -266,7 +266,7 @@ export async function createCallAsset(
 }
 
 export async function createStructuredSnippetAssets(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   header: string,
   values: string[],
@@ -283,7 +283,7 @@ export async function createStructuredSnippetAssets(
 }
 
 export async function linkCampaignAssets(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   assets: Array<{ assetId: string; fieldType: string }>,
@@ -301,7 +301,7 @@ export async function linkCampaignAssets(
 }
 
 export async function linkAdGroupAssets(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   adGroupId: string,
   assets: Array<{ assetId: string; fieldType: string }>,
@@ -319,7 +319,7 @@ export async function linkAdGroupAssets(
 }
 
 export async function uploadImageAssetFromUrl(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   assetName: string,
   imageUrl: string,
@@ -358,7 +358,7 @@ export async function uploadImageAssetFromUrl(
 }
 
 export async function uploadImageAssetFromFile(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   assetName: string,
   filePath: string,

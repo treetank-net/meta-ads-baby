@@ -1,24 +1,20 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET } from './constants.js';
+import { META_APP_ID, META_APP_SECRET } from './constants.js';
 
-export interface AdsConfig {
-  clientId: string;
-  clientSecret: string;
-  developerToken: string;
-  refreshToken: string;
-  loginCustomerId: string;
+export interface MetaAdsConfig {
+  appId: string;
+  appSecret: string;
+  accessToken: string;
   safetyLevel: 'strict' | 'standard' | 'off';
   mutationTokenTtlSeconds: string;
   confirmStateTtlSeconds: string;
 }
 
 interface SavedConfig {
-  clientId?: string;
-  clientSecret?: string;
-  developerToken?: string;
-  loginCustomerId?: string;
-  refreshToken?: string;
+  appId?: string;
+  appSecret?: string;
+  accessToken?: string;
   safetyLevel?: 'strict' | 'standard' | 'off';
   mutationTokenTtlSeconds?: string;
   confirmStateTtlSeconds?: string;
@@ -35,11 +31,11 @@ function env(name: string): string {
 }
 
 export function getConfigDir(): string {
-  const explicit = env('GOOGLE_ADS_BABY_DATA');
+  const explicit = env('META_ADS_BABY_DATA');
   if (explicit) return explicit;
   const home = process.env['HOME'] || process.env['USERPROFILE'] || process.env['APPDATA'];
-  if (home) return join(home, '.google-ads-baby');
-  return join(process.platform === 'win32' ? (process.env['TEMP'] || 'C:\\Temp') : '/tmp', '.google-ads-baby');
+  if (home) return join(home, '.meta-ads-baby');
+  return join(process.platform === 'win32' ? (process.env['TEMP'] || 'C:\\Temp') : '/tmp', '.meta-ads-baby');
 }
 
 export function getConfigPath(): string {
@@ -65,23 +61,21 @@ export async function saveConfig(config: Partial<SavedConfig>): Promise<string> 
   return path;
 }
 
-export async function configFromEnv(): Promise<AdsConfig> {
+export async function configFromEnv(): Promise<MetaAdsConfig> {
   const saved = await loadSavedConfig();
-  const safetyLevel = env('GOOGLE_ADS_SAFETY_LEVEL') || saved.safetyLevel || 'standard';
-  const mutationTokenTtlSeconds = env('GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS') || saved.mutationTokenTtlSeconds || '';
-  const confirmStateTtlSeconds = env('GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS') || saved.confirmStateTtlSeconds || '';
+  const safetyLevel = env('META_ADS_SAFETY_LEVEL') || saved.safetyLevel || 'standard';
+  const mutationTokenTtlSeconds = env('META_ADS_MUTATION_TOKEN_TTL_SECONDS') || saved.mutationTokenTtlSeconds || '';
+  const confirmStateTtlSeconds = env('META_ADS_CONFIRM_STATE_TTL_SECONDS') || saved.confirmStateTtlSeconds || '';
 
-  process.env['GOOGLE_ADS_SAFETY_LEVEL'] ||= safetyLevel;
-  if (mutationTokenTtlSeconds) process.env['GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS'] ||= mutationTokenTtlSeconds;
-  if (confirmStateTtlSeconds) process.env['GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS'] ||= confirmStateTtlSeconds;
+  process.env['META_ADS_SAFETY_LEVEL'] ||= safetyLevel;
+  if (mutationTokenTtlSeconds) process.env['META_ADS_MUTATION_TOKEN_TTL_SECONDS'] ||= mutationTokenTtlSeconds;
+  if (confirmStateTtlSeconds) process.env['META_ADS_CONFIRM_STATE_TTL_SECONDS'] ||= confirmStateTtlSeconds;
 
   return {
-    clientId: env('GOOGLE_ADS_CLIENT_ID') || saved.clientId || OAUTH_CLIENT_ID,
-    clientSecret: env('GOOGLE_ADS_CLIENT_SECRET') || saved.clientSecret || OAUTH_CLIENT_SECRET,
-    developerToken: env('GOOGLE_ADS_DEVELOPER_TOKEN') || saved.developerToken || '',
-    refreshToken: env('GOOGLE_ADS_REFRESH_TOKEN') || saved.refreshToken || '',
-    loginCustomerId: env('GOOGLE_ADS_MCC_ID') || saved.loginCustomerId || '',
-    safetyLevel: safetyLevel as AdsConfig['safetyLevel'],
+    appId: env('META_ADS_APP_ID') || saved.appId || META_APP_ID,
+    appSecret: env('META_ADS_APP_SECRET') || saved.appSecret || META_APP_SECRET,
+    accessToken: env('META_ADS_ACCESS_TOKEN') || saved.accessToken || '',
+    safetyLevel: safetyLevel as MetaAdsConfig['safetyLevel'],
     mutationTokenTtlSeconds,
     confirmStateTtlSeconds,
   };

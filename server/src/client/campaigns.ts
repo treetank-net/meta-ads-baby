@@ -1,9 +1,9 @@
 import { enums, ResourceNames } from 'google-ads-api';
 import { getCustomer } from './core.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 
 export async function mutateCampaignStatus(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   status: 'ENABLED' | 'PAUSED',
@@ -12,7 +12,7 @@ export async function mutateCampaignStatus(
 }
 
 export async function mutateCampaignStatuses(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaigns: Array<{ campaignId: string; status: 'ENABLED' | 'PAUSED' }>,
 ): Promise<unknown> {
@@ -24,7 +24,7 @@ export async function mutateCampaignStatuses(
 }
 
 export async function removeCampaigns(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignIds: string[],
 ): Promise<unknown> {
@@ -35,7 +35,7 @@ export async function removeCampaigns(
 }
 
 export async function mutateCampaignBudget(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   budgetId: string,
   amountMicros: number,
@@ -50,7 +50,7 @@ export async function mutateCampaignBudget(
 }
 
 export async function createSearchCampaign(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   name: string,
   dailyBudgetMicros: number,
@@ -91,7 +91,7 @@ export async function createSearchCampaign(
 }
 
 export async function createDisplayCampaign(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   name: string,
   dailyBudgetMicros: number,
@@ -126,7 +126,7 @@ export async function createDisplayCampaign(
 }
 
 export async function createPerformanceMaxCampaign(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   name: string,
   dailyBudgetMicros: number,
@@ -182,7 +182,7 @@ export async function createPerformanceMaxCampaign(
 }
 
 export async function createAdGroup(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   name: string,
@@ -201,7 +201,7 @@ export async function createAdGroup(
 }
 
 export async function createDisplayAdGroup(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   name: string,
@@ -220,7 +220,7 @@ export async function createDisplayAdGroup(
 }
 
 export async function createCampaignTargeting(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   targeting: {
@@ -246,7 +246,7 @@ export async function createCampaignTargeting(
 }
 
 export async function mutateBiddingStrategy(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   campaignId: string,
   strategy: { type: string; targetCpaMicros?: number; targetRoas?: number },

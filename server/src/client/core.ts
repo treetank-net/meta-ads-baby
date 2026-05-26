@@ -1,9 +1,9 @@
 import { GoogleAdsApi, enums, ResourceNames } from 'google-ads-api';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 
 export { enums, ResourceNames };
 
-export function getCustomer(cfg: AdsConfig, customerId: string) {
+export function getCustomer(cfg: MetaAdsConfig, customerId: string) {
   const api = new GoogleAdsApi({
     client_id: cfg.clientId,
     client_secret: cfg.clientSecret,
@@ -16,7 +16,7 @@ export function getCustomer(cfg: AdsConfig, customerId: string) {
   });
 }
 
-export async function listAccounts(cfg: AdsConfig): Promise<Array<{ id: string; name: string; currency: string }>> {
+export async function listAccounts(cfg: MetaAdsConfig): Promise<Array<{ id: string; name: string; currency: string }>> {
   const customer = getCustomer(cfg, cfg.loginCustomerId);
   const rows = await customer.query(`
     SELECT customer_client.id, customer_client.descriptive_name,
@@ -34,7 +34,7 @@ export async function listAccounts(cfg: AdsConfig): Promise<Array<{ id: string; 
   }));
 }
 
-export async function getCampaigns(cfg: AdsConfig, customerId: string, days: 7 | 30 = 30): Promise<unknown[]> {
+export async function getCampaigns(cfg: MetaAdsConfig, customerId: string, days: 7 | 30 = 30): Promise<unknown[]> {
   const customer = getCustomer(cfg, customerId);
   return customer.query(`
     SELECT campaign.id, campaign.name, campaign.status,
@@ -49,7 +49,7 @@ export async function getCampaigns(cfg: AdsConfig, customerId: string, days: 7 |
   `);
 }
 
-export async function executeGaql(cfg: AdsConfig, customerId: string, query: string): Promise<unknown[]> {
+export async function executeGaql(cfg: MetaAdsConfig, customerId: string, query: string): Promise<unknown[]> {
   const customer = getCustomer(cfg, customerId);
   return customer.query(query);
 }

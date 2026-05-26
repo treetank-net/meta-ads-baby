@@ -1,9 +1,9 @@
 import { enums, ResourceNames } from 'google-ads-api';
 import { getCustomer } from './core.js';
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 
 export async function createResponsiveSearchAd(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   adGroupId: string,
   headlines: string[],
@@ -28,7 +28,7 @@ export async function createResponsiveSearchAd(
 }
 
 export async function createResponsiveDisplayAd(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   adGroupId: string,
   businessName: string,
@@ -70,7 +70,7 @@ export async function createResponsiveDisplayAd(
 }
 
 export async function createKeywords(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   adGroupId: string,
   keywords: Array<{ text: string; matchType: 'BROAD' | 'PHRASE' | 'EXACT' }>,
@@ -87,7 +87,7 @@ export async function createKeywords(
 }
 
 export async function createNegativeKeywords(
-  cfg: AdsConfig,
+  cfg: MetaAdsConfig,
   customerId: string,
   target: { level: 'campaign'; campaignId: string } | { level: 'ad_group'; adGroupId: string },
   keywords: Array<{ text: string; matchType: 'BROAD' | 'PHRASE' | 'EXACT' }>,

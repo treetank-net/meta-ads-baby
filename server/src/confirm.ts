@@ -16,10 +16,10 @@ export const DEFAULT_TOKEN_TTL_SECONDS = 60 * 60;
 export const DEFAULT_CONFIRM_STATE_TTL_SECONDS = 60 * 60;
 
 function tokenTtlSeconds(): number {
-  const raw = Number(process.env['GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS'] || '');
+  const raw = Number(process.env['META_ADS_MUTATION_TOKEN_TTL_SECONDS'] || '');
   if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
 
-  switch (process.env['GOOGLE_ADS_SAFETY_LEVEL'] || 'standard') {
+  switch (process.env['META_ADS_SAFETY_LEVEL'] || 'standard') {
     case 'strict':
       return 5 * 60;
     case 'off':
@@ -30,10 +30,10 @@ function tokenTtlSeconds(): number {
 }
 
 function confirmStateTtlSeconds(): number {
-  const raw = Number(process.env['GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS'] || '');
+  const raw = Number(process.env['META_ADS_CONFIRM_STATE_TTL_SECONDS'] || '');
   if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
 
-  switch (process.env['GOOGLE_ADS_SAFETY_LEVEL'] || 'standard') {
+  switch (process.env['META_ADS_SAFETY_LEVEL'] || 'standard') {
     case 'strict':
       return 5 * 60;
     case 'off':
@@ -55,11 +55,11 @@ const pending = new Map<string, PendingMutation>();
 
 
 function getSafeWordPath(): string {
-  return join(getConfigDir(), '.gads-safe-word');
+  return join(getConfigDir(), '.mads-safe-word');
 }
 
 function getConfirmStatePath(): string {
-  return join(getConfigDir(), '.gads-confirm-state');
+  return join(getConfigDir(), '.mads-confirm-state');
 }
 
 function saveSafeWord(word: string) {
@@ -95,10 +95,10 @@ export function getPendingToken(token: string): PendingMutation | null {
 }
 
 export function confirmPendingSafeWord(token: string, providedSafeWord: string): { ok: true } | { ok: false; error: string } {
-  if (process.env['GOOGLE_ADS_ENABLE_MANUAL_CONFIRM'] !== '1') {
+  if (process.env['META_ADS_ENABLE_MANUAL_CONFIRM'] !== '1') {
     return {
       ok: false,
-      error: 'Manual safe word confirmation is disabled. Set GOOGLE_ADS_ENABLE_MANUAL_CONFIRM=1 only for local testing.',
+      error: 'Manual safe word confirmation is disabled. Set META_ADS_ENABLE_MANUAL_CONFIRM=1 only for local testing.',
     };
   }
 
@@ -124,7 +124,7 @@ export function confirmPendingSafeWord(token: string, providedSafeWord: string):
 }
 
 export function consumeConfirmState(mutation: PendingMutation): { ok: true } | { ok: false; error: string } {
-  if (process.env['GOOGLE_ADS_SAFETY_LEVEL'] === 'off' || process.env['GOOGLE_ADS_YOLO'] === '1') {
+  if (process.env['META_ADS_SAFETY_LEVEL'] === 'off' || process.env['META_ADS_YOLO'] === '1') {
     return { ok: true };
   }
 

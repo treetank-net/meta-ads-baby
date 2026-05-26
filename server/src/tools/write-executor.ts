@@ -1,4 +1,4 @@
-import type { AdsConfig } from '../config.js';
+import type { MetaAdsConfig } from '../config.js';
 import type { PendingMutation } from '../confirm.js';
 import {
   createAdGroup,
@@ -32,7 +32,7 @@ import {
 import { recordSuccess, recordFailure } from '../history.js';
 import { MAX_IMAGE_BYTES } from './write-schemas.js';
 
-export async function executeMutation(cfg: AdsConfig, mutation: PendingMutation, batchId?: string): Promise<string> {
+export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutation, batchId?: string): Promise<string> {
   const p = mutation.params as Record<string, any>;
 
   const ok = (result?: unknown): string => {
