@@ -9,6 +9,8 @@ export const CODEX_HOOK_INSTALL_COMMAND = 'npx codex-marketplace add treetank-ne
 export const adAccountIdSchema = z.string().describe('Meta ad account ID (digits only or act_XXXX format) from list_ad_accounts');
 export const safeWordSchema = z.string().min(3).max(32).describe('Short random ASCII safe word for user confirmation. The LLM must invent this and include it in the preview shown to the user.');
 export const campaignStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']);
+export const entityStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']);
+export const entityTypeSchema = z.enum(['campaign', 'ad_set', 'ad']);
 export const objectiveSchema = z.enum([
   'OUTCOME_APP_PROMOTION', 'OUTCOME_AWARENESS', 'OUTCOME_ENGAGEMENT',
   'OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_TRAFFIC',

@@ -7,8 +7,10 @@ import {
   updateAdSet,
   createAdSet,
   createAd,
+  updateAd,
   createAdCreative,
   uploadImage,
+  createLookalikeAudience,
   MetaApiError,
 } from '../client.js';
 
@@ -101,6 +103,55 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
       ? { url: p.source_value }
       : { filePath: p.source_value };
     const result = await uploadImage(cfg, p.ad_account_id, source);
+    return ok(result);
+  }
+
+  if (mutation.action === 'ad_set_status') {
+    const result = await updateAdSet(cfg, p.ad_set_id, { status: p.status });
+    return ok(result);
+  }
+
+  if (mutation.action === 'ad_status') {
+    const result = await updateAd(cfg, p.ad_id, { status: p.status });
+    return ok(result);
+  }
+
+  if (mutation.action === 'ad_set_update') {
+    const params: Record<string, unknown> = {};
+    if (p.targeting) params['targeting'] = p.targeting;
+    if (p.daily_budget) params['daily_budget'] = p.daily_budget;
+    if (p.lifetime_budget) params['lifetime_budget'] = p.lifetime_budget;
+    if (p.optimization_goal) params['optimization_goal'] = p.optimization_goal;
+    if (p.bid_amount) params['bid_amount'] = p.bid_amount;
+    if (p.end_time) params['end_time'] = p.end_time;
+    const result = await updateAdSet(cfg, p.ad_set_id, params);
+    return ok(result);
+  }
+
+  if (mutation.action === 'campaign_removal') {
+    const result = await updateCampaign(cfg, p.campaign_id, { status: 'DELETED' });
+    return ok(result);
+  }
+
+  if (mutation.action === 'ad_set_removal') {
+    const result = await updateAdSet(cfg, p.ad_set_id, { status: 'DELETED' });
+    return ok(result);
+  }
+
+  if (mutation.action === 'ad_removal') {
+    const result = await updateAd(cfg, p.ad_id, { status: 'DELETED' });
+    return ok(result);
+  }
+
+  if (mutation.action === 'lookalike_audience_create') {
+    const result = await createLookalikeAudience(cfg, p.ad_account_id, {
+      name: p.name,
+      origin_audience_id: p.origin_audience_id,
+      lookalike_spec: {
+        country: p.country,
+        ratio: p.ratio,
+      },
+    });
     return ok(result);
   }
 

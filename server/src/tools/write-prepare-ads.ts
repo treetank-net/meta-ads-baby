@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, campaignStatusSchema } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, campaignStatusSchema, entityStatusSchema } from './write-schemas.js';
 
 export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -97,6 +97,51 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         ad_account_id: normalizedAccountId,
         source_type,
         source_value,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_ad_status',
+    'Prepare a Meta Ads ad status change (activate/pause/archive). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    {
+      ad_account_id: adAccountIdSchema,
+      ad_id: z.string().describe('Ad ID'),
+      status: entityStatusSchema.describe('Target status'),
+      safe_word: safeWordSchema,
+    },
+    async ({ ad_account_id, ad_id, status, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const preview = `Change ad ${ad_id} status to ${status} on account ${normalizedAccountId}`;
+      const warning = status === 'ARCHIVED' ? '\nWarning: Archiving an ad is irreversible.' : '';
+      const mutation = createToken('ad_status', {
+        ad_account_id: normalizedAccountId,
+        ad_id,
+        status,
+      }, preview + warning, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview + warning);
+    },
+  );
+
+  server.tool(
+    'prepare_ad_removal',
+    'Prepare deletion of a Meta ad (sets status to DELETED). This is irreversible. Returns a preview and confirmation token. The user MUST confirm before the deletion.',
+    {
+      ad_account_id: adAccountIdSchema,
+      ad_id: z.string().describe('Ad ID to delete'),
+      safe_word: safeWordSchema,
+    },
+    async ({ ad_account_id, ad_id, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const preview = `DELETE ad ${ad_id} on account ${normalizedAccountId}\nWarning: This is irreversible.`;
+      const mutation = createToken('ad_removal', {
+        ad_account_id: normalizedAccountId,
+        ad_id,
       }, preview, safe_word.trim());
       return prepareResponse(cfg, mutation, preview);
     },

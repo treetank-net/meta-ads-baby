@@ -8,6 +8,7 @@ import {
   adAccountIdSchema,
   safeWordSchema,
   campaignStatusSchema,
+  entityStatusSchema,
   objectiveSchema,
   billingEventSchema,
   optimizationGoalSchema,
@@ -195,6 +196,123 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         end_time,
         status,
         bid_amount: bid_amount ? String(bid_amount) : undefined,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_ad_set_status',
+    'Prepare a Meta Ads ad set status change (activate/pause/archive). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    {
+      ad_account_id: adAccountIdSchema,
+      ad_set_id: z.string().describe('Ad set ID'),
+      status: entityStatusSchema.describe('Target status'),
+      safe_word: safeWordSchema,
+    },
+    async ({ ad_account_id, ad_set_id, status, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const preview = `Change ad set ${ad_set_id} status to ${status} on account ${normalizedAccountId}`;
+      const warning = status === 'ARCHIVED' ? '\nWarning: Archiving an ad set is irreversible.' : '';
+      const mutation = createToken('ad_set_status', {
+        ad_account_id: normalizedAccountId,
+        ad_set_id,
+        status,
+      }, preview + warning, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview + warning);
+    },
+  );
+
+  server.tool(
+    'prepare_ad_set_update',
+    'Prepare an update to an existing Meta Ads ad set (targeting, budget, optimization, bid, end time). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    {
+      ad_account_id: adAccountIdSchema,
+      ad_set_id: z.string().describe('Ad set ID to update'),
+      targeting: z.record(z.unknown()).optional().describe('New targeting spec object'),
+      daily_budget: z.number().positive().optional().describe('New daily budget in cents'),
+      lifetime_budget: z.number().positive().optional().describe('New lifetime budget in cents'),
+      optimization_goal: optimizationGoalSchema.optional().describe('New optimization goal'),
+      bid_amount: z.number().positive().optional().describe('New bid amount in cents'),
+      end_time: z.string().optional().describe('New end time in ISO 8601 format'),
+      safe_word: safeWordSchema,
+    },
+    async ({ ad_account_id, ad_set_id, targeting, daily_budget, lifetime_budget, optimization_goal, bid_amount, end_time, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      if (!targeting && !daily_budget && !lifetime_budget && !optimization_goal && !bid_amount && !end_time) {
+        return validationResult('Provide at least one field to update.');
+      }
+      if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
+        return validationResult(`Daily budget ${formatBudget(daily_budget)} exceeds safety limit of ${formatBudget(MAX_DAILY_BUDGET_CENTS)}.`);
+      }
+      if (lifetime_budget && lifetime_budget > MAX_LIFETIME_BUDGET_CENTS) {
+        return validationResult(`Lifetime budget ${formatBudget(lifetime_budget)} exceeds safety limit of ${formatBudget(MAX_LIFETIME_BUDGET_CENTS)}.`);
+      }
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const lines = [`Update ad set ${ad_set_id} on account ${normalizedAccountId}`];
+      if (targeting) lines.push(`Targeting: ${JSON.stringify(targeting)}`);
+      if (daily_budget) lines.push(`Daily budget: ${formatBudget(daily_budget)}`);
+      if (lifetime_budget) lines.push(`Lifetime budget: ${formatBudget(lifetime_budget)}`);
+      if (optimization_goal) lines.push(`Optimization goal: ${optimization_goal}`);
+      if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount)}`);
+      if (end_time) lines.push(`End time: ${end_time}`);
+      const warning = daily_budget ? budgetWarning(daily_budget) : '';
+      if (warning) lines.push(warning);
+      const preview = lines.join('\n');
+      const mutation = createToken('ad_set_update', {
+        ad_account_id: normalizedAccountId,
+        ad_set_id,
+        targeting,
+        daily_budget: daily_budget ? String(daily_budget) : undefined,
+        lifetime_budget: lifetime_budget ? String(lifetime_budget) : undefined,
+        optimization_goal,
+        bid_amount: bid_amount ? String(bid_amount) : undefined,
+        end_time,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_campaign_removal',
+    'Prepare deletion of a Meta Ads campaign (sets status to DELETED). This is irreversible. Returns a preview and confirmation token. The user MUST confirm before the deletion.',
+    {
+      ad_account_id: adAccountIdSchema,
+      campaign_id: z.string().describe('Campaign ID to delete'),
+      safe_word: safeWordSchema,
+    },
+    async ({ ad_account_id, campaign_id, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const preview = `DELETE campaign ${campaign_id} on account ${normalizedAccountId}\nWarning: This is irreversible. The campaign and all its ad sets and ads will be deleted.`;
+      const mutation = createToken('campaign_removal', {
+        ad_account_id: normalizedAccountId,
+        campaign_id,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_ad_set_removal',
+    'Prepare deletion of a Meta Ads ad set (sets status to DELETED). This is irreversible. Returns a preview and confirmation token. The user MUST confirm before the deletion.',
+    {
+      ad_account_id: adAccountIdSchema,
+      ad_set_id: z.string().describe('Ad set ID to delete'),
+      safe_word: safeWordSchema,
+    },
+    async ({ ad_account_id, ad_set_id, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const preview = `DELETE ad set ${ad_set_id} on account ${normalizedAccountId}\nWarning: This is irreversible. The ad set and all its ads will be deleted.`;
+      const mutation = createToken('ad_set_removal', {
+        ad_account_id: normalizedAccountId,
+        ad_set_id,
       }, preview, safe_word.trim());
       return prepareResponse(cfg, mutation, preview);
     },
