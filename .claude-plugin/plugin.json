@@ -1,0 +1,31 @@
+{
+  "name": "google-ads-baby",
+  "description": "Google Ads campaign management MCP server with two-phase safety confirmations. Read campaigns, adjust budgets, pause/enable — every mutation requires explicit user approval. Feedback & bug reports: jmarianski@trans.eu",
+  "version": "0.9.0",
+  "author": {
+    "name": "Jacek Mariański",
+    "email": "jmarianski@trans.eu",
+    "url": "https://treetank.net"
+  },
+  "license": "MIT",
+  "keywords": ["google-ads", "mcp", "campaigns", "safety"],
+  "hooks": "./hooks.json",
+  "mcpServers": {
+    "google-ads": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/start-mcp.js"],
+      "env": {
+        "CLAUDE_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}",
+        "GOOGLE_ADS_DEVELOPER_TOKEN": "${GOOGLE_ADS_DEVELOPER_TOKEN:-}",
+        "GOOGLE_ADS_MCC_ID": "${GOOGLE_ADS_MCC_ID:-}",
+        "GOOGLE_ADS_REFRESH_TOKEN": "${GOOGLE_ADS_REFRESH_TOKEN:-}",
+        "GOOGLE_ADS_CLIENT_ID": "${GOOGLE_ADS_CLIENT_ID:-}",
+        "GOOGLE_ADS_CLIENT_SECRET": "${GOOGLE_ADS_CLIENT_SECRET:-}",
+        "GOOGLE_ADS_SAFETY_LEVEL": "${GOOGLE_ADS_SAFETY_LEVEL:-}",
+        "GOOGLE_ADS_ENABLE_MANUAL_CONFIRM": "${GOOGLE_ADS_ENABLE_MANUAL_CONFIRM:-0}",
+        "GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS": "${GOOGLE_ADS_MUTATION_TOKEN_TTL_SECONDS:-}",
+        "GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS": "${GOOGLE_ADS_CONFIRM_STATE_TTL_SECONDS:-}"
+      }
+    }
+  }
+}
