@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema } from './write-schemas.js';
 
 export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -17,8 +17,9 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       creative_id: z.string().describe('Existing ad creative ID'),
       status: campaignStatusSchema.default('PAUSED').describe('Initial ad status'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_set_id, name, creative_id, status, safe_word }) => {
+    async ({ ad_account_id, ad_set_id, name, creative_id, status, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -29,7 +30,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         name,
         creative_id,
         status,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -48,8 +49,9 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       image_hash: z.string().optional().describe('Image hash from a previously uploaded ad image'),
       call_to_action_type: z.string().default('LEARN_MORE').describe('CTA button type, e.g. LEARN_MORE, SHOP_NOW, SIGN_UP, DOWNLOAD, CONTACT_US'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, name, page_id, link_url, message, headline, description, image_hash, call_to_action_type, safe_word }) => {
+    async ({ ad_account_id, name, page_id, link_url, message, headline, description, image_hash, call_to_action_type, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -74,7 +76,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         description,
         image_hash,
         call_to_action_type,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -87,8 +89,9 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       source_type: z.enum(['url', 'file']).describe('Whether to upload from a URL or a local file path'),
       source_value: z.string().min(1).describe('The URL or absolute file path of the image'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, source_type, source_value, safe_word }) => {
+    async ({ ad_account_id, source_type, source_value, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -97,7 +100,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         ad_account_id: normalizedAccountId,
         source_type,
         source_value,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -110,8 +113,9 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       ad_id: z.string().describe('Ad ID'),
       status: entityStatusSchema.describe('Target status'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_id, status, safe_word }) => {
+    async ({ ad_account_id, ad_id, status, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -121,7 +125,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         ad_account_id: normalizedAccountId,
         ad_id,
         status,
-      }, preview + warning, safe_word.trim());
+      }, preview + warning, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview + warning);
     },
   );
@@ -133,8 +137,9 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       ad_account_id: adAccountIdSchema,
       ad_id: z.string().describe('Ad ID to delete'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_id, safe_word }) => {
+    async ({ ad_account_id, ad_id, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -142,7 +147,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       const mutation = createToken('ad_removal', {
         ad_account_id: normalizedAccountId,
         ad_id,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -151,7 +156,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
     'prepare_ad_update',
     'Prepare an update to an existing Meta ad (name, status, creative). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
     adUpdateSchema.shape,
-    async ({ ad_account_id, ad_id, name, status, creative_id, safe_word }) => {
+    async ({ ad_account_id, ad_id, name, status, creative_id, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!name && !status && !creative_id) {
@@ -169,7 +174,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         name,
         status,
         creative_id,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -178,7 +183,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
     'prepare_clone_entity',
     'Prepare cloning/duplicating a Meta Ads campaign, ad set, or ad. Returns a preview and confirmation token. The user MUST confirm before the clone is executed.',
     cloneEntitySchema.shape,
-    async ({ ad_account_id, entity_type, source_id, parent_id, name_override, safe_word }) => {
+    async ({ ad_account_id, entity_type, source_id, parent_id, name_override, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (entity_type === 'ad_set' && !parent_id) {
@@ -198,7 +203,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         source_id,
         parent_id,
         name_override,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );

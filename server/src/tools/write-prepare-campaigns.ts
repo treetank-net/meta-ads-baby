@@ -7,6 +7,7 @@ import { validateAdAccount, validationResult, prepareResponse, budgetWarning, fo
 import {
   adAccountIdSchema,
   safeWordSchema,
+  tempIdSchema,
   campaignStatusSchema,
   entityStatusSchema,
   objectiveSchema,
@@ -26,8 +27,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       campaign_id: z.string().describe('Campaign ID'),
       status: campaignStatusSchema.describe('Target status'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, campaign_id, status, safe_word }) => {
+    async ({ ad_account_id, campaign_id, status, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -37,7 +39,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         ad_account_id: normalizedAccountId,
         campaign_id,
         status,
-      }, preview + warning, safe_word.trim());
+      }, preview + warning, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview + warning);
     },
   );
@@ -52,8 +54,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       daily_budget: z.number().positive().optional().describe('New daily budget in cents (currency minor units). Provide this or lifetime_budget.'),
       lifetime_budget: z.number().positive().optional().describe('New lifetime budget in cents (currency minor units). Provide this or daily_budget.'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, object_id, object_type, daily_budget, lifetime_budget, safe_word }) => {
+    async ({ ad_account_id, object_id, object_type, daily_budget, lifetime_budget, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!daily_budget && !lifetime_budget) {
@@ -77,7 +80,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         object_type,
         daily_budget: daily_budget ? String(daily_budget) : undefined,
         lifetime_budget: lifetime_budget ? String(lifetime_budget) : undefined,
-      }, warning ? `${preview}\n${warning}` : preview, safe_word.trim());
+      }, warning ? `${preview}\n${warning}` : preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, warning ? `${preview}\n${warning}` : preview);
     },
   );
@@ -95,8 +98,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       lifetime_budget: z.number().positive().optional().describe('Lifetime budget in cents (currency minor units)'),
       bid_strategy: z.string().optional().describe('Bid strategy, e.g. LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, name, objective, status, special_ad_categories, daily_budget, lifetime_budget, bid_strategy, safe_word }) => {
+    async ({ ad_account_id, name, objective, status, special_ad_categories, daily_budget, lifetime_budget, bid_strategy, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
@@ -129,7 +133,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         daily_budget: daily_budget ? String(daily_budget) : undefined,
         lifetime_budget: lifetime_budget ? String(lifetime_budget) : undefined,
         bid_strategy,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -151,8 +155,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       status: campaignStatusSchema.default('PAUSED').describe('Initial ad set status'),
       bid_amount: z.number().positive().optional().describe('Bid amount in cents for manual bidding'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, campaign_id, name, daily_budget, lifetime_budget, billing_event, optimization_goal, targeting, start_time, end_time, status, bid_amount, safe_word }) => {
+    async ({ ad_account_id, campaign_id, name, daily_budget, lifetime_budget, billing_event, optimization_goal, targeting, start_time, end_time, status, bid_amount, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!daily_budget && !lifetime_budget) {
@@ -197,7 +202,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         end_time,
         status,
         bid_amount: bid_amount ? String(bid_amount) : undefined,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -210,8 +215,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       ad_set_id: z.string().describe('Ad set ID'),
       status: entityStatusSchema.describe('Target status'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_set_id, status, safe_word }) => {
+    async ({ ad_account_id, ad_set_id, status, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -221,7 +227,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         ad_account_id: normalizedAccountId,
         ad_set_id,
         status,
-      }, preview + warning, safe_word.trim());
+      }, preview + warning, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview + warning);
     },
   );
@@ -239,8 +245,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       bid_amount: z.number().positive().optional().describe('New bid amount in cents'),
       end_time: z.string().optional().describe('New end time in ISO 8601 format'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_set_id, targeting, daily_budget, lifetime_budget, optimization_goal, bid_amount, end_time, safe_word }) => {
+    async ({ ad_account_id, ad_set_id, targeting, daily_budget, lifetime_budget, optimization_goal, bid_amount, end_time, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!targeting && !daily_budget && !lifetime_budget && !optimization_goal && !bid_amount && !end_time) {
@@ -272,7 +279,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         optimization_goal,
         bid_amount: bid_amount ? String(bid_amount) : undefined,
         end_time,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -284,8 +291,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       ad_account_id: adAccountIdSchema,
       campaign_id: z.string().describe('Campaign ID to delete'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, campaign_id, safe_word }) => {
+    async ({ ad_account_id, campaign_id, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -293,7 +301,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       const mutation = createToken('campaign_removal', {
         ad_account_id: normalizedAccountId,
         campaign_id,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -305,8 +313,9 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       ad_account_id: adAccountIdSchema,
       ad_set_id: z.string().describe('Ad set ID to delete'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_set_id, safe_word }) => {
+    async ({ ad_account_id, ad_set_id, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -314,7 +323,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       const mutation = createToken('ad_set_removal', {
         ad_account_id: normalizedAccountId,
         ad_set_id,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -323,7 +332,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
     'prepare_campaign_update',
     'Prepare an update to an existing Meta Ads campaign (name, spend_cap, bid_strategy, daily_budget, status). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
     campaignUpdateSchema.shape,
-    async ({ ad_account_id, campaign_id, name, spend_cap, bid_strategy, daily_budget, status, safe_word }) => {
+    async ({ ad_account_id, campaign_id, name, spend_cap, bid_strategy, daily_budget, status, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!name && !spend_cap && !bid_strategy && !daily_budget && !status) {
@@ -350,7 +359,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         bid_strategy,
         daily_budget: daily_budget ? String(daily_budget) : undefined,
         status,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );

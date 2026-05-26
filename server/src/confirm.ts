@@ -10,6 +10,7 @@ export interface PendingMutation {
   preview: string;
   createdAt: number;
   safeWord: string;
+  tempId?: string;
 }
 
 export const DEFAULT_TOKEN_TTL_SECONDS = 60 * 60;
@@ -68,9 +69,10 @@ function saveSafeWord(word: string) {
   writeFileSync(getSafeWordPath(), word);
 }
 
-export function createToken(action: string, params: Record<string, unknown>, preview: string, safeWord: string): PendingMutation {
+export function createToken(action: string, params: Record<string, unknown>, preview: string, safeWord: string, tempId?: string): PendingMutation {
   const token = randomUUID();
   const mutation: PendingMutation = { token, action, params, preview, createdAt: Date.now(), safeWord };
+  if (tempId) mutation.tempId = tempId;
   pending.set(token, mutation);
   saveSafeWord(safeWord);
   return mutation;

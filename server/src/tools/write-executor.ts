@@ -18,13 +18,18 @@ import {
   MetaApiError,
 } from '../client.js';
 
-export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutation, batchId?: string): Promise<string> {
+export interface MutationResult {
+  text: string;
+  rawResult?: unknown;
+}
+
+export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutation, batchId?: string): Promise<MutationResult> {
   const p = mutation.params as Record<string, any>;
 
-  const ok = (result?: unknown): string => {
+  const ok = (result?: unknown): MutationResult => {
     recordSuccess(mutation.action, p, mutation.preview, result, batchId);
-    if (result) return `OK: ${mutation.preview}\n${JSON.stringify(result, null, 2)}`;
-    return `OK: ${mutation.preview}`;
+    const text = result ? `OK: ${mutation.preview}\n${JSON.stringify(result, null, 2)}` : `OK: ${mutation.preview}`;
+    return { text, rawResult: result };
   };
 
   if (mutation.action === 'campaign_status') {

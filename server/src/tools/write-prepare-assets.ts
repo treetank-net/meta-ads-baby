@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, carouselCreativeSchema, videoCreativeSchema, videoUploadSchema, leadCreativeSchema } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, tempIdSchema, carouselCreativeSchema, videoCreativeSchema, videoUploadSchema, leadCreativeSchema } from './write-schemas.js';
 
 export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -17,8 +17,9 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
       country: z.string().length(2).describe('Two-letter country code for the lookalike audience (e.g. US, PL, DE)'),
       ratio: z.number().min(0.01).max(0.20).describe('Lookalike ratio (0.01 = top 1%, 0.20 = top 20%)'),
       safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, name, origin_audience_id, country, ratio, safe_word }) => {
+    async ({ ad_account_id, name, origin_audience_id, country, ratio, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -35,7 +36,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
         origin_audience_id,
         country,
         ratio,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -44,7 +45,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
     'prepare_carousel_creative',
     'Prepare creation of a Meta carousel ad creative with 2-10 image cards. Each card has its own image, link, and headline. Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
     carouselCreativeSchema.shape,
-    async ({ ad_account_id, name, page_id, message, link, child_attachments, call_to_action_type, safe_word }) => {
+    async ({ ad_account_id, name, page_id, message, link, child_attachments, call_to_action_type, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -75,7 +76,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
         link,
         child_attachments,
         call_to_action: callToAction,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -84,7 +85,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
     'prepare_video_creative',
     'Prepare creation of a Meta video ad creative. Requires a previously uploaded video ID. Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
     videoCreativeSchema.shape,
-    async ({ ad_account_id, name, page_id, video_id, message, title, image_hash, call_to_action_type, call_to_action_link, safe_word }) => {
+    async ({ ad_account_id, name, page_id, video_id, message, title, image_hash, call_to_action_type, call_to_action_link, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -113,7 +114,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
         title,
         image_hash,
         call_to_action: callToAction,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -122,7 +123,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
     'prepare_video_upload',
     'Prepare upload of a video to a Meta ad account from a URL or local file. Returns a preview and confirmation token. The user MUST confirm before the upload.',
     videoUploadSchema.shape,
-    async ({ ad_account_id, file_url, file_path, title, safe_word }) => {
+    async ({ ad_account_id, file_url, file_path, title, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!file_url && !file_path) return validationResult('Either file_url or file_path must be provided');
@@ -139,7 +140,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
         source_type: file_url ? 'url' : 'file',
         source_value: file_url || file_path,
         title,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );
@@ -148,7 +149,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
     'prepare_lead_creative',
     'Prepare creation of a Meta lead generation ad creative with a lead form. Uses object_story_spec with link_data and lead_gen_form_id. Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
     leadCreativeSchema.shape,
-    async ({ ad_account_id, name, page_id, message, link, image_hash, headline, description, lead_gen_form_id, call_to_action_type, safe_word }) => {
+    async ({ ad_account_id, name, page_id, message, link, image_hash, headline, description, lead_gen_form_id, call_to_action_type, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -175,7 +176,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
         description,
         lead_gen_form_id,
         call_to_action_type,
-      }, preview, safe_word.trim());
+      }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
   );

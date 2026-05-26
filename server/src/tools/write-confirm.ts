@@ -8,6 +8,39 @@ import { CODEX_HOOK_INSTALL_COMMAND } from './write-schemas.js';
 import { safetyHookNotice } from './write-helpers.js';
 import { executeMutation, formatMutationError } from './write-executor.js';
 
+function resolveParams<T>(value: T, resolvedIds: Map<string, string>): T {
+  if (typeof value === 'string') {
+    if (value.startsWith('$')) {
+      const resolved = resolvedIds.get(value);
+      if (resolved === undefined) throw new Error(`Unresolved temp ID reference: ${value}`);
+      return resolved as unknown as T;
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => resolveParams(item, resolvedIds)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = resolveParams(v, resolvedIds);
+    }
+    return out as unknown as T;
+  }
+  return value;
+}
+
+function extractResolvedId(action: string, rawResult: unknown): string | undefined {
+  if (!rawResult || typeof rawResult !== 'object') return undefined;
+  const r = rawResult as Record<string, unknown>;
+  if (typeof r['id'] === 'string') return r['id'];
+  if (typeof r['hash'] === 'string') return r['hash'];
+  if (typeof r['copied_campaign_id'] === 'string') return r['copied_campaign_id'];
+  if (typeof r['copied_adset_id'] === 'string') return r['copied_adset_id'];
+  if (typeof r['copied_ad_id'] === 'string') return r['copied_ad_id'];
+  return undefined;
+}
+
 export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'get_safety_setup',
@@ -83,7 +116,7 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
 
       try {
         const result = await executeMutation(cfg, mutation);
-        return { content: [{ type: 'text', text: result }] };
+        return { content: [{ type: 'text', text: result.text }] };
       } catch (err: any) {
         const errMsg = formatMutationError(err);
         recordFailure(mutation.action, mutation.params as Record<string, any>, mutation.preview, errMsg);
@@ -116,6 +149,7 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
 
       const batchId = `batch-${Date.now()}`;
       const results: string[] = [];
+      const resolvedIds = new Map<string, string>();
       let succeeded = 0;
       let failed = 0;
       for (let i = 0; i < tokens.length; i++) {
@@ -126,8 +160,21 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
           continue;
         }
         try {
+          mutation.params = resolveParams(mutation.params, resolvedIds);
+        } catch (err: any) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          recordFailure(mutation.action, mutation.params as Record<string, any>, mutation.preview, errMsg, batchId);
+          results.push(`[${i + 1}/${tokens.length}] Error [${mutation.action}]: ${errMsg}`);
+          failed++;
+          continue;
+        }
+        try {
           const result = await executeMutation(cfg, mutation, batchId);
-          results.push(`[${i + 1}/${tokens.length}] ${result}`);
+          if (mutation.tempId) {
+            const realId = extractResolvedId(mutation.action, result.rawResult);
+            if (realId) resolvedIds.set(mutation.tempId, realId);
+          }
+          results.push(`[${i + 1}/${tokens.length}] ${result.text}`);
           succeeded++;
         } catch (err: any) {
           const errMsg = formatMutationError(err);

@@ -8,6 +8,7 @@ export const CODEX_HOOK_INSTALL_COMMAND = 'npx codex-marketplace add treetank-ne
 
 export const adAccountIdSchema = z.string().describe('Meta ad account ID (digits only or act_XXXX format) from list_ad_accounts');
 export const safeWordSchema = z.string().min(3).max(32).describe('Short random ASCII safe word for user confirmation. The LLM must invent this and include it in the preview shown to the user.');
+export const tempIdSchema = z.string().startsWith('$').optional().describe('Optional temp ID (must start with $) for batch dependency resolution. Other prepare_* calls can reference this temp ID in their params, and confirm_all_mutations will resolve it to the real ID after execution.');
 export const campaignStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']);
 export const entityStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']);
 export const entityTypeSchema = z.enum(['campaign', 'ad_set', 'ad']);
@@ -43,6 +44,7 @@ export const carouselCreativeSchema = z.object({
   child_attachments: z.array(childAttachmentSchema).min(2).max(10).describe('Carousel cards (2-10 items)'),
   call_to_action_type: ctaTypeSchema.optional().describe('CTA button type for the whole carousel'),
   safe_word: safeWordSchema,
+  temp_id: tempIdSchema,
 });
 
 export const videoCreativeSchema = z.object({
@@ -56,6 +58,7 @@ export const videoCreativeSchema = z.object({
   call_to_action_type: ctaTypeSchema.optional().describe('CTA button type'),
   call_to_action_link: z.string().url().optional().describe('CTA destination URL'),
   safe_word: safeWordSchema,
+  temp_id: tempIdSchema,
 });
 
 export const videoUploadSchema = z.object({
@@ -64,6 +67,7 @@ export const videoUploadSchema = z.object({
   file_path: z.string().optional().describe('Absolute local file path of the video to upload'),
   title: z.string().optional().describe('Video title'),
   safe_word: safeWordSchema,
+  temp_id: tempIdSchema,
 });
 
 export const campaignUpdateSchema = z.object({
@@ -75,6 +79,7 @@ export const campaignUpdateSchema = z.object({
   daily_budget: z.number().positive().optional().describe('New daily budget in cents'),
   status: campaignStatusSchema.optional().describe('New campaign status'),
   safe_word: safeWordSchema,
+  temp_id: tempIdSchema,
 });
 
 export const adUpdateSchema = z.object({
@@ -84,6 +89,7 @@ export const adUpdateSchema = z.object({
   status: entityStatusSchema.optional().describe('New ad status'),
   creative_id: z.string().optional().describe('New ad creative ID'),
   safe_word: safeWordSchema,
+  temp_id: tempIdSchema,
 });
 
 export const cloneEntitySchema = z.object({
@@ -93,6 +99,7 @@ export const cloneEntitySchema = z.object({
   parent_id: z.string().optional().describe('Parent entity ID. Required for ad_set (campaign_id) and ad (adset_id).'),
   name_override: z.string().optional().describe('Optional name for the cloned entity. Defaults to source name with " - Copy" suffix.'),
   safe_word: safeWordSchema,
+  temp_id: tempIdSchema,
 });
 
 export const leadCreativeSchema = z.object({
@@ -107,4 +114,5 @@ export const leadCreativeSchema = z.object({
   lead_gen_form_id: z.string().describe('Lead generation form ID'),
   call_to_action_type: ctaTypeSchema.default('SIGN_UP').describe('CTA button type (default: SIGN_UP)'),
   safe_word: safeWordSchema,
+  temp_id: tempIdSchema,
 });
