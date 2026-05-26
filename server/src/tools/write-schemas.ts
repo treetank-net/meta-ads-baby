@@ -65,3 +65,46 @@ export const videoUploadSchema = z.object({
   title: z.string().optional().describe('Video title'),
   safe_word: safeWordSchema,
 });
+
+export const campaignUpdateSchema = z.object({
+  ad_account_id: adAccountIdSchema,
+  campaign_id: z.string().describe('Campaign ID to update'),
+  name: z.string().min(1).optional().describe('New campaign name'),
+  spend_cap: z.number().positive().optional().describe('New spend cap in cents (currency minor units)'),
+  bid_strategy: z.string().optional().describe('New bid strategy, e.g. LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP'),
+  daily_budget: z.number().positive().optional().describe('New daily budget in cents'),
+  status: campaignStatusSchema.optional().describe('New campaign status'),
+  safe_word: safeWordSchema,
+});
+
+export const adUpdateSchema = z.object({
+  ad_account_id: adAccountIdSchema,
+  ad_id: z.string().describe('Ad ID to update'),
+  name: z.string().min(1).optional().describe('New ad name'),
+  status: entityStatusSchema.optional().describe('New ad status'),
+  creative_id: z.string().optional().describe('New ad creative ID'),
+  safe_word: safeWordSchema,
+});
+
+export const cloneEntitySchema = z.object({
+  ad_account_id: adAccountIdSchema,
+  entity_type: entityTypeSchema.describe('Type of entity to clone: campaign, ad_set, or ad'),
+  source_id: z.string().describe('ID of the source entity to clone'),
+  parent_id: z.string().optional().describe('Parent entity ID. Required for ad_set (campaign_id) and ad (adset_id).'),
+  name_override: z.string().optional().describe('Optional name for the cloned entity. Defaults to source name with " - Copy" suffix.'),
+  safe_word: safeWordSchema,
+});
+
+export const leadCreativeSchema = z.object({
+  ad_account_id: adAccountIdSchema,
+  name: z.string().min(1).describe('Creative name'),
+  page_id: z.string().describe('Facebook Page ID to publish the ad from'),
+  message: z.string().min(1).describe('Post text shown above the ad'),
+  link: z.string().url().describe('Destination URL for the ad'),
+  image_hash: z.string().describe('Image hash from prepare_image_upload'),
+  headline: z.string().min(1).describe('Link headline shown below the image'),
+  description: z.string().min(1).describe('Link description shown below the headline'),
+  lead_gen_form_id: z.string().describe('Lead generation form ID'),
+  call_to_action_type: ctaTypeSchema.default('SIGN_UP').describe('CTA button type (default: SIGN_UP)'),
+  safe_word: safeWordSchema,
+});

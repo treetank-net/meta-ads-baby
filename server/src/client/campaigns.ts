@@ -64,3 +64,9 @@ export async function createCampaign(cfg: MetaAdsConfig, adAccountId: string, pa
 export async function updateCampaign(cfg: MetaAdsConfig, campaignId: string, params: Record<string, unknown>): Promise<{ success: boolean }> {
   return post<{ success: boolean }>(cfg, `/${campaignId}`, params);
 }
+
+export async function cloneCampaign(cfg: MetaAdsConfig, sourceCampaignId: string, nameOverride?: string): Promise<{ copied_campaign_id: string }> {
+  const params: Record<string, unknown> = { status_option: 'PAUSED' };
+  if (nameOverride) params['rename_options'] = { rename_suffix: ` - ${nameOverride}` };
+  return post<{ copied_campaign_id: string }>(cfg, `/${sourceCampaignId}/copies`, params);
+}

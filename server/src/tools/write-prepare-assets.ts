@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, carouselCreativeSchema, videoCreativeSchema, videoUploadSchema } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, carouselCreativeSchema, videoCreativeSchema, videoUploadSchema, leadCreativeSchema } from './write-schemas.js';
 
 export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -139,6 +139,42 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
         source_type: file_url ? 'url' : 'file',
         source_value: file_url || file_path,
         title,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_lead_creative',
+    'Prepare creation of a Meta lead generation ad creative with a lead form. Uses object_story_spec with link_data and lead_gen_form_id. Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
+    leadCreativeSchema.shape,
+    async ({ ad_account_id, name, page_id, message, link, image_hash, headline, description, lead_gen_form_id, call_to_action_type, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const lines = [
+        `Create lead generation ad creative "${name}" on account ${normalizedAccountId}`,
+        `Page: ${page_id}`,
+        `Message: ${message}`,
+        `Link: ${link}`,
+        `Image hash: ${image_hash}`,
+        `Headline: ${headline}`,
+        `Description: ${description}`,
+        `Lead form: ${lead_gen_form_id}`,
+        `CTA: ${call_to_action_type}`,
+      ];
+      const preview = lines.join('\n');
+      const mutation = createToken('lead_creative_create', {
+        ad_account_id: normalizedAccountId,
+        name,
+        page_id,
+        message,
+        link,
+        image_hash,
+        headline,
+        description,
+        lead_gen_form_id,
+        call_to_action_type,
       }, preview, safe_word.trim());
       return prepareResponse(cfg, mutation, preview);
     },

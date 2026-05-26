@@ -12,6 +12,7 @@ import {
   objectiveSchema,
   billingEventSchema,
   optimizationGoalSchema,
+  campaignUpdateSchema,
   MAX_DAILY_BUDGET_CENTS,
   MAX_LIFETIME_BUDGET_CENTS,
 } from './write-schemas.js';
@@ -313,6 +314,42 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       const mutation = createToken('ad_set_removal', {
         ad_account_id: normalizedAccountId,
         ad_set_id,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_campaign_update',
+    'Prepare an update to an existing Meta Ads campaign (name, spend_cap, bid_strategy, daily_budget, status). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    campaignUpdateSchema.shape,
+    async ({ ad_account_id, campaign_id, name, spend_cap, bid_strategy, daily_budget, status, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      if (!name && !spend_cap && !bid_strategy && !daily_budget && !status) {
+        return validationResult('Provide at least one field to update.');
+      }
+      if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
+        return validationResult(`Daily budget ${formatBudget(daily_budget)} exceeds safety limit of ${formatBudget(MAX_DAILY_BUDGET_CENTS)}.`);
+      }
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const lines = [`Update campaign ${campaign_id} on account ${normalizedAccountId}`];
+      if (name) lines.push(`Name: ${name}`);
+      if (spend_cap) lines.push(`Spend cap: ${formatBudget(spend_cap)}`);
+      if (bid_strategy) lines.push(`Bid strategy: ${bid_strategy}`);
+      if (daily_budget) lines.push(`Daily budget: ${formatBudget(daily_budget)}`);
+      if (status) lines.push(`Status: ${status}`);
+      const warning = daily_budget ? budgetWarning(daily_budget) : '';
+      if (warning) lines.push(warning);
+      const preview = lines.join('\n');
+      const mutation = createToken('campaign_update', {
+        ad_account_id: normalizedAccountId,
+        campaign_id,
+        name,
+        spend_cap: spend_cap ? String(spend_cap) : undefined,
+        bid_strategy,
+        daily_budget: daily_budget ? String(daily_budget) : undefined,
+        status,
       }, preview, safe_word.trim());
       return prepareResponse(cfg, mutation, preview);
     },

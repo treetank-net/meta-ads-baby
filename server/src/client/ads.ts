@@ -49,3 +49,9 @@ export async function createAd(cfg: MetaAdsConfig, adAccountId: string, params: 
 export async function updateAd(cfg: MetaAdsConfig, adId: string, params: Record<string, unknown>): Promise<{ success: boolean }> {
   return post<{ success: boolean }>(cfg, `/${adId}`, params);
 }
+
+export async function cloneAd(cfg: MetaAdsConfig, sourceAdId: string, adSetId: string, nameOverride?: string): Promise<{ copied_ad_id: string }> {
+  const params: Record<string, unknown> = { adset_id: adSetId, status_option: 'PAUSED' };
+  if (nameOverride) params['rename_options'] = { rename_suffix: ` - ${nameOverride}` };
+  return post<{ copied_ad_id: string }>(cfg, `/${sourceAdId}/copies`, params);
+}

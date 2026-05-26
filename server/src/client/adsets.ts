@@ -90,3 +90,9 @@ export async function createAdSet(cfg: MetaAdsConfig, adAccountId: string, param
 export async function updateAdSet(cfg: MetaAdsConfig, adSetId: string, params: Record<string, unknown>): Promise<{ success: boolean }> {
   return post<{ success: boolean }>(cfg, `/${adSetId}`, params);
 }
+
+export async function cloneAdSet(cfg: MetaAdsConfig, sourceAdSetId: string, campaignId: string, nameOverride?: string): Promise<{ copied_adset_id: string }> {
+  const params: Record<string, unknown> = { campaign_id: campaignId, status_option: 'PAUSED' };
+  if (nameOverride) params['rename_options'] = { rename_suffix: ` - ${nameOverride}` };
+  return post<{ copied_adset_id: string }>(cfg, `/${sourceAdSetId}/copies`, params);
+}

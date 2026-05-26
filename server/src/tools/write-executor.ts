@@ -4,10 +4,13 @@ import { recordSuccess } from '../history.js';
 import {
   updateCampaign,
   createCampaign,
+  cloneCampaign,
   updateAdSet,
   createAdSet,
+  cloneAdSet,
   createAd,
   updateAd,
+  cloneAd,
   createAdCreative,
   uploadImage,
   uploadVideo,
@@ -196,6 +199,63 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
       : { filePath: p.source_value as string };
     if (p.title) (source as any)['title'] = p.title;
     const result = await uploadVideo(cfg, p.ad_account_id, { ...source, title: p.title as string | undefined });
+    return ok(result);
+  }
+
+  if (mutation.action === 'campaign_update') {
+    const params: Record<string, unknown> = {};
+    if (p.name) params['name'] = p.name;
+    if (p.spend_cap) params['spend_cap'] = p.spend_cap;
+    if (p.bid_strategy) params['bid_strategy'] = p.bid_strategy;
+    if (p.daily_budget) params['daily_budget'] = p.daily_budget;
+    if (p.status) params['status'] = p.status;
+    const result = await updateCampaign(cfg, p.campaign_id, params);
+    return ok(result);
+  }
+
+  if (mutation.action === 'ad_update') {
+    const params: Record<string, unknown> = {};
+    if (p.name) params['name'] = p.name;
+    if (p.status) params['status'] = p.status;
+    if (p.creative_id) params['creative'] = { creative_id: p.creative_id };
+    const result = await updateAd(cfg, p.ad_id, params);
+    return ok(result);
+  }
+
+  if (mutation.action === 'clone_entity') {
+    if (p.entity_type === 'campaign') {
+      const result = await cloneCampaign(cfg, p.source_id, p.name_override);
+      return ok(result);
+    }
+    if (p.entity_type === 'ad_set') {
+      const result = await cloneAdSet(cfg, p.source_id, p.parent_id, p.name_override);
+      return ok(result);
+    }
+    if (p.entity_type === 'ad') {
+      const result = await cloneAd(cfg, p.source_id, p.parent_id, p.name_override);
+      return ok(result);
+    }
+    throw new Error(`Unknown entity_type for clone: ${p.entity_type}`);
+  }
+
+  if (mutation.action === 'lead_creative_create') {
+    const result = await createAdCreative(cfg, p.ad_account_id, {
+      name: p.name,
+      object_story_spec: {
+        page_id: p.page_id,
+        link_data: {
+          message: p.message,
+          link: p.link,
+          image_hash: p.image_hash,
+          name: p.headline,
+          description: p.description,
+          call_to_action: {
+            type: p.call_to_action_type,
+            value: { lead_gen_form_id: p.lead_gen_form_id },
+          },
+        },
+      },
+    });
     return ok(result);
   }
 

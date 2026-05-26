@@ -3,7 +3,7 @@ import { get, getAll, post } from './core.js';
 
 export interface CallToAction {
   type: string;
-  value?: { link?: string };
+  value?: { link?: string; lead_gen_form_id?: string };
 }
 
 export interface ChildAttachment {

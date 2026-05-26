@@ -3,8 +3,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
-import { validateAdAccount, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, campaignStatusSchema, entityStatusSchema } from './write-schemas.js';
+import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
+import { adAccountIdSchema, safeWordSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema } from './write-schemas.js';
 
 export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -142,6 +142,62 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       const mutation = createToken('ad_removal', {
         ad_account_id: normalizedAccountId,
         ad_id,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_ad_update',
+    'Prepare an update to an existing Meta ad (name, status, creative). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    adUpdateSchema.shape,
+    async ({ ad_account_id, ad_id, name, status, creative_id, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      if (!name && !status && !creative_id) {
+        return validationResult('Provide at least one field to update.');
+      }
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const lines = [`Update ad ${ad_id} on account ${normalizedAccountId}`];
+      if (name) lines.push(`Name: ${name}`);
+      if (status) lines.push(`Status: ${status}`);
+      if (creative_id) lines.push(`Creative: ${creative_id}`);
+      const preview = lines.join('\n');
+      const mutation = createToken('ad_update', {
+        ad_account_id: normalizedAccountId,
+        ad_id,
+        name,
+        status,
+        creative_id,
+      }, preview, safe_word.trim());
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_clone_entity',
+    'Prepare cloning/duplicating a Meta Ads campaign, ad set, or ad. Returns a preview and confirmation token. The user MUST confirm before the clone is executed.',
+    cloneEntitySchema.shape,
+    async ({ ad_account_id, entity_type, source_id, parent_id, name_override, safe_word }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      if (entity_type === 'ad_set' && !parent_id) {
+        return validationResult('parent_id (campaign_id) is required when cloning an ad set.');
+      }
+      if (entity_type === 'ad' && !parent_id) {
+        return validationResult('parent_id (adset_id) is required when cloning an ad.');
+      }
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const lines = [`Clone ${entity_type} ${source_id} on account ${normalizedAccountId}`];
+      if (parent_id) lines.push(`Parent: ${parent_id}`);
+      if (name_override) lines.push(`Name override: ${name_override}`);
+      const preview = lines.join('\n');
+      const mutation = createToken('clone_entity', {
+        ad_account_id: normalizedAccountId,
+        entity_type,
+        source_id,
+        parent_id,
+        name_override,
       }, preview, safe_word.trim());
       return prepareResponse(cfg, mutation, preview);
     },
