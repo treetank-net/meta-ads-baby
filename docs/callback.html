@@ -1,71 +1,14 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Meta Ads — Authorization</title>
-<style>
-  body { font-family: system-ui; display:flex; justify-content:center; align-items:center;
-         min-height:100vh; margin:0; background:#f0f4f8; }
-  .card { background:white; padding:2.5rem; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.1);
-          max-width:420px; width:100%; text-align:center; }
-  h1 { color:#1877F2; margin:0 0 .5rem; font-size:1.4rem; }
-  p { color:#444; line-height:1.5; font-size:.95rem; }
-  .error { color:#dc2626; }
-  .spinner { display:inline-block; width:24px; height:24px; border:3px solid #e5e7eb;
-             border-top-color:#1877F2; border-radius:50%; animation:spin .6s linear infinite; margin-bottom:.5rem; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  code { background:#f1f5f9; padding:.2rem .5rem; border-radius:4px; font-size:.85rem; word-break:break-all; display:block; margin:.75rem 0; }
-  button { background:#1877F2; color:white; border:none; padding:.6rem 1.2rem; border-radius:6px; font-size:.9rem; cursor:pointer; margin-top:.5rem; }
-  button:hover { background:#1466D8; }
-</style></head><body><div class="card">
-  <div class="spinner" id="spinner"></div>
-  <h1 id="title">Connecting...</h1>
-  <p id="msg">Sending token to local server...</p>
-  <div id="fallback" style="display:none">
-    <p>Copy this token and paste it in the app:</p>
-    <code id="token-display"></code>
-    <button onclick="navigator.clipboard.writeText(document.getElementById('token-display').textContent)">Copy token</button>
-  </div>
-</div>
+</head><body>
 <script>
-(async () => {
   const hash = window.location.hash.substring(1);
   const params = new URLSearchParams(hash);
   const token = params.get('access_token');
-  const error = params.get('error');
-  const errorDesc = params.get('error_description');
-  const title = document.getElementById('title');
-  const msg = document.getElementById('msg');
-  const spinner = document.getElementById('spinner');
-
-  if (error) {
-    spinner.style.display = 'none';
-    title.textContent = 'Authorization denied';
-    title.className = 'error';
-    msg.textContent = errorDesc || error;
-    return;
+  if (token) {
+    window.location.href = 'http://127.0.0.1:9876/oauth-callback?access_token=' + encodeURIComponent(token);
+  } else {
+    document.body.textContent = params.get('error_description') || params.get('error') || 'No token received.';
   }
-
-  if (!token) {
-    spinner.style.display = 'none';
-    title.textContent = 'No token received';
-    title.className = 'error';
-    msg.textContent = 'Authorization may have been denied or the URL is incomplete.';
-    return;
-  }
-
-  try {
-    const res = await fetch('http://127.0.0.1:9876/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: token }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    window.location.href = 'http://127.0.0.1:9876/setup';
-  } catch (e) {
-    spinner.style.display = 'none';
-    title.textContent = 'Could not reach local server';
-    msg.textContent = 'The local auth server may not be running. Copy the token manually:';
-    document.getElementById('token-display').textContent = token;
-    document.getElementById('fallback').style.display = 'block';
-  }
-})();
-</script></body></html>
+</script>
+</body></html>

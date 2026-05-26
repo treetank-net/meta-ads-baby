@@ -432,6 +432,23 @@ export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: stri
       return;
     }
 
+    if (url.pathname === '/oauth-callback' && req.method === 'GET') {
+      let accessToken = (url.searchParams.get('access_token') || '').trim();
+      if (!accessToken) { html(400, '<h1>Error</h1><p>No access token received.</p>'); return; }
+      try {
+        if (cfg.appSecret) {
+          try { accessToken = await exchangeForLongLivedToken(accessToken, cfg.appId, cfg.appSecret); }
+          catch { /* keep short-lived */ }
+        }
+        await saveConfig({ accessToken });
+        cfg.accessToken = accessToken;
+        html(200, SETUP_PAGE);
+      } catch (err: any) {
+        html(500, `<h1>Error</h1><p>${err.message}</p>`);
+      }
+      return;
+    }
+
     if (url.pathname === '/token' && req.method === 'POST') {
       try {
         const body = JSON.parse(await readBody(req));
