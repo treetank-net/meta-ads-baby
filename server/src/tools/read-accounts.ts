@@ -1,160 +1,184 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MetaAdsConfig } from '../config.js';
-import { listAccounts, executeGaql, getCampaigns } from '../client.js';
-import { formatError } from '../errors.js';
 import { normalizeAdAccountId, requireAdAccountId } from '../validation.js';
-import {
-  entitySchema,
-  upperTokenSchema,
-  adFilter,
-  normalizeLimit,
-  resourceNameLiteral,
-  buildAdBlueprint,
-  buildAdQuery,
-  buildAdAssetQuery,
-  buildListQuery,
-} from './read-helpers.js';
+import { listAdAccounts, ACCOUNT_STATUS_LABELS, getCampaigns, getAdSets, getAds, getInsights, getAdCreatives, getCustomAudiences } from '../client.js';
+import { formatError } from '../errors.js';
 
 export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
-    'list_accounts',
-    'List all Google Ads accounts under the MCC',
+    'list_ad_accounts',
+    'List all Meta Ad Accounts accessible to the authenticated user',
     {},
     async () => {
-      if (!cfg.developerToken || !cfg.loginCustomerId) {
-        return { content: [{ type: 'text', text: 'Error: Missing developer token or MCC ID. Run setup_google_auth first.' }] };
+      if (!cfg.accessToken) {
+        return { content: [{ type: 'text' as const, text: 'Error: Missing access token. Run setup_meta_auth first.' }] };
       }
       try {
-        const accounts = await listAccounts(cfg);
-        return { content: [{ type: 'text', text: JSON.stringify(accounts, null, 2) }] };
+        const accounts = await listAdAccounts(cfg);
+        const formatted = accounts.map((a) => ({
+          id: a.id,
+          account_id: a.account_id,
+          name: a.name,
+          status: ACCOUNT_STATUS_LABELS[a.account_status] || String(a.account_status),
+          currency: a.currency,
+          timezone: a.timezone_name,
+          business_name: a.business_name,
+          amount_spent: a.amount_spent,
+          balance: a.balance,
+        }));
+        return { content: [{ type: 'text' as const, text: JSON.stringify(formatted, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: 'text', text: formatError(err) }] };
+        return { content: [{ type: 'text' as const, text: formatError(err) }] };
       }
     },
   );
 
   server.tool(
     'get_campaigns',
-    'Get campaigns with performance metrics for a specific account',
+    'Get campaigns for a Meta Ad Account, optionally filtered by status',
     {
-      customer_id: z.string().describe('Google Ads customer ID (e.g. "1234567890")'),
-      days: z.enum(['7', '30']).default('30').describe('Lookback period'),
+      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
+      status_filter: z.array(z.string()).optional().describe('Filter by effective status: ACTIVE, PAUSED, ARCHIVED'),
     },
-    async ({ customer_id, days }) => {
-      const validationError = requireAdAccountId(customer_id);
+    async ({ ad_account_id, status_filter }) => {
+      const validationError = requireAdAccountId(ad_account_id);
       if (validationError) {
-        return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
+        return { content: [{ type: 'text' as const, text: `Error: ${validationError}` }] };
       }
       try {
-        const rows = await getCampaigns(cfg, normalizeAdAccountId(customer_id), Number(days) as 7 | 30);
-        return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
+        const campaigns = await getCampaigns(cfg, normalizeAdAccountId(ad_account_id), status_filter);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(campaigns, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: 'text', text: formatError(err) }] };
+        return { content: [{ type: 'text' as const, text: formatError(err) }] };
       }
     },
   );
 
   server.tool(
-    'execute_gaql',
-    'Run an arbitrary GAQL query against a Google Ads account (read-only)',
+    'get_ad_sets',
+    'Get ad sets for a Meta Ad Account, optionally filtered by campaign',
     {
-      customer_id: z.string().describe('Google Ads customer ID'),
-      query: z.string().describe('GAQL query (SELECT ... FROM ... WHERE ...)'),
+      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
+      campaign_id: z.string().optional().describe('Filter ad sets by campaign ID'),
     },
-    async ({ customer_id, query }) => {
-      const validationError = requireAdAccountId(customer_id);
+    async ({ ad_account_id, campaign_id }) => {
+      const validationError = requireAdAccountId(ad_account_id);
       if (validationError) {
-        return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
-      }
-      if (/\b(CREATE|UPDATE|REMOVE|MUTATE)\b/i.test(query)) {
-        return {
-          content: [{ type: 'text', text: 'Error: GAQL mutations not allowed. Use prepare_* tools.' }],
-        };
+        return { content: [{ type: 'text' as const, text: `Error: ${validationError}` }] };
       }
       try {
-        const rows = await executeGaql(cfg, normalizeAdAccountId(customer_id), query);
-        return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
+        const adSets = await getAdSets(cfg, normalizeAdAccountId(ad_account_id), campaign_id);
+        const formatted = adSets.map((s) => ({
+          id: s.id,
+          name: s.name,
+          campaign_id: s.campaign_id,
+          status: s.effective_status,
+          configured_status: s.configured_status,
+          daily_budget: s.daily_budget,
+          lifetime_budget: s.lifetime_budget,
+          budget_remaining: s.budget_remaining,
+          optimization_goal: s.optimization_goal,
+          billing_event: s.billing_event,
+          bid_strategy: s.bid_strategy,
+          targeting_summary: s.targeting ? {
+            age_min: s.targeting.age_min,
+            age_max: s.targeting.age_max,
+            genders: s.targeting.genders,
+            countries: s.targeting.geo_locations?.countries,
+            publisher_platforms: s.targeting.publisher_platforms,
+            custom_audiences_count: s.targeting.custom_audiences?.length,
+          } : undefined,
+          start_time: s.start_time,
+          end_time: s.end_time,
+        }));
+        return { content: [{ type: 'text' as const, text: JSON.stringify(formatted, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: 'text', text: formatError(err) }] };
+        return { content: [{ type: 'text' as const, text: formatError(err) }] };
       }
     },
   );
 
   server.tool(
-    'list_ads_entities',
-    'List Google Ads entities with optional filters and relationship context. Use this instead of broad account inspection on large accounts.',
+    'get_ads',
+    'Get ads for a Meta Ad Account, optionally filtered by ad set',
     {
-      customer_id: z.string().describe('Google Ads customer ID'),
-      entity: entitySchema.describe('What to list: campaigns, ad_groups, ads, assets, or ad_asset_links'),
-      campaign_id: z.string().optional().describe('Optional campaign ID filter'),
-      ad_group_id: z.string().optional().describe('Optional ad group ID filter'),
-      status: upperTokenSchema.optional().describe('Optional status filter, e.g. ENABLED, PAUSED, REMOVED. For ad_asset_links use TRUE or FALSE to filter enabled links.'),
-      type: upperTokenSchema.optional().describe('Optional entity type filter, e.g. SEARCH, DISPLAY, RESPONSIVE_SEARCH_AD, IMAGE'),
-      subtype: upperTokenSchema.optional().describe('Optional campaign advertising channel subtype filter, e.g. DISPLAY_GMAIL_AD, SEARCH_MOBILE_APP'),
-      name_contains: z.string().min(1).max(120).optional().describe('Optional case-sensitive name substring filter where the selected entity has a name'),
-      limit: z.number().int().min(1).max(200).default(50).describe('Maximum rows to return, capped at 200'),
+      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
+      ad_set_id: z.string().optional().describe('Filter ads by ad set ID'),
     },
-    async (input) => {
-      const validationError = requireAdAccountId(input.customer_id);
+    async ({ ad_account_id, ad_set_id }) => {
+      const validationError = requireAdAccountId(ad_account_id);
       if (validationError) {
-        return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
+        return { content: [{ type: 'text' as const, text: `Error: ${validationError}` }] };
       }
       try {
-        const query = buildListQuery(input);
-        const rows = await executeGaql(cfg, normalizeAdAccountId(input.customer_id), query);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              entity: input.entity,
-              limit: normalizeLimit(input.limit),
-              rows,
-            }, null, 2),
-          }],
-        };
+        const ads = await getAds(cfg, normalizeAdAccountId(ad_account_id), ad_set_id);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(ads, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: 'text', text: formatError(err) }] };
+        return { content: [{ type: 'text' as const, text: formatError(err) }] };
       }
     },
   );
 
   server.tool(
-    'get_ad_blueprint',
-    'Get one ad with campaign/ad group context, linked assets, and a clone-ready input shape for supported ad types.',
+    'get_insights',
+    'Get performance insights for a Meta Ads object (account, campaign, ad set, or ad). The object_id can be act_{id} for accounts, or a numeric ID for campaigns/adsets/ads.',
     {
-      customer_id: z.string().describe('Google Ads customer ID'),
-      ad_id: z.string().optional().describe('Ad ID. Use this or ad_group_ad_resource_name.'),
-      ad_group_ad_resource_name: z.string().optional().describe('Full ad group ad resource name, e.g. customers/123/adGroupAds/456~789. Use this when available.'),
+      object_id: z.string().describe('Object ID: act_{id} for accounts, or campaign/adset/ad numeric ID'),
+      date_preset: z.string().optional().describe('Date preset: today, yesterday, last_7d, last_14d, last_28d, last_30d, last_90d, this_month, last_month, this_quarter, last_quarter, this_year, last_year, maximum'),
+      level: z.string().optional().describe('Aggregation level: account, campaign, adset, ad'),
+      time_increment: z.string().optional().describe('Time granularity: 1 (daily), 7 (weekly), monthly, all_days'),
     },
-    async (input) => {
-      const validationError = requireAdAccountId(input.customer_id);
-      if (validationError) {
-        return { content: [{ type: 'text', text: `Error: ${validationError}` }] };
+    async ({ object_id, date_preset, level, time_increment }) => {
+      try {
+        const insights = await getInsights(cfg, object_id, {
+          datePreset: (date_preset || 'last_30d') as any,
+          level: level as any,
+          timeIncrement: time_increment,
+        });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(insights, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text' as const, text: formatError(err) }] };
       }
-      const filter = adFilter(input);
-      if (!filter) {
-        return { content: [{ type: 'text', text: 'Error: Provide ad_id or ad_group_ad_resource_name.' }] };
+    },
+  );
+
+  server.tool(
+    'get_ad_creatives',
+    'Get ad creatives for a Meta Ad Account',
+    {
+      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
+    },
+    async ({ ad_account_id }) => {
+      const validationError = requireAdAccountId(ad_account_id);
+      if (validationError) {
+        return { content: [{ type: 'text' as const, text: `Error: ${validationError}` }] };
       }
       try {
-        const customerId = normalizeAdAccountId(input.customer_id);
-        const adRows = await executeGaql(cfg, customerId, buildAdQuery(filter)) as any[];
-        if (adRows.length === 0) {
-          return { content: [{ type: 'text', text: 'Error: Ad not found for the provided ID/resource name.' }] };
-        }
-        if (adRows.length > 1) {
-          return { content: [{ type: 'text', text: 'Error: More than one ad matched. Retry with ad_group_ad_resource_name.' }] };
-        }
-        const resourceFilter = `ad_group_ad.resource_name = ${resourceNameLiteral(adRows[0].ad_group_ad.resource_name)}`;
-        const assetRows = await executeGaql(cfg, customerId, buildAdAssetQuery(resourceFilter)) as any[];
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(buildAdBlueprint(adRows[0], assetRows), null, 2),
-          }],
-        };
+        const creatives = await getAdCreatives(cfg, normalizeAdAccountId(ad_account_id));
+        return { content: [{ type: 'text' as const, text: JSON.stringify(creatives, null, 2) }] };
       } catch (err) {
-        return { content: [{ type: 'text', text: formatError(err) }] };
+        return { content: [{ type: 'text' as const, text: formatError(err) }] };
+      }
+    },
+  );
+
+  server.tool(
+    'get_audiences',
+    'Get custom audiences for a Meta Ad Account',
+    {
+      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
+    },
+    async ({ ad_account_id }) => {
+      const validationError = requireAdAccountId(ad_account_id);
+      if (validationError) {
+        return { content: [{ type: 'text' as const, text: `Error: ${validationError}` }] };
+      }
+      try {
+        const audiences = await getCustomAudiences(cfg, normalizeAdAccountId(ad_account_id));
+        return { content: [{ type: 'text' as const, text: JSON.stringify(audiences, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text' as const, text: formatError(err) }] };
       }
     },
   );

@@ -4,7 +4,7 @@ import { join } from 'path';
 import type { MetaAdsConfig } from '../config.js';
 import { startAuthFlow } from '../auth.js';
 
-const REPO_RAW = 'https://raw.githubusercontent.com/treetank-net/google-ads-baby/master';
+const REPO_RAW = 'https://raw.githubusercontent.com/treetank-net/meta-ads-baby/master';
 
 function getPluginRoot(): string {
   return process.env['CLAUDE_PLUGIN_ROOT'] || process.cwd();
@@ -26,8 +26,8 @@ async function downloadFile(remotePath: string, localPath: string): Promise<bool
 
 export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
-    'setup_google_auth',
-    'Start Google OAuth flow. Returns a URL for the user to click. After authorization the refresh token is saved automatically.',
+    'setup_meta_auth',
+    'Start Facebook OAuth flow for Meta Ads. Returns a URL for the user to click. After authorization the access token is saved automatically.',
     {},
     async () => {
       const { shortUrl } = startAuthFlow(cfg);
@@ -35,7 +35,7 @@ export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
         content: [{
           type: 'text',
           text: [
-            'Opening a browser for Google Ads setup.',
+            'Opening a browser for Meta Ads setup.',
             'If no browser window appeared, open this URL manually:',
             shortUrl,
             'After authorization and configuration in the browser, type anything here.',
@@ -93,5 +93,4 @@ export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
       }
     },
   );
-
 }
