@@ -111,8 +111,6 @@ const OPEN_PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8">
           max-width:520px; width:100%; }
   h1 { color:#1877F2; margin:0 0 .5rem; font-size:1.5rem; }
   p { color:#444; line-height:1.5; }
-  .custom-fields { display:none; margin:1rem 0; }
-  .custom-fields.show { display:block; }
   label { display:block; font-weight:600; margin-bottom:.25rem; margin-top:.75rem; }
   .hint { font-size:.85rem; color:#666; margin-bottom:.5rem; }
   input { width:100%; padding:.6rem; border:1px solid #ddd; border-radius:6px; font-size:1rem; }
@@ -120,22 +118,21 @@ const OPEN_PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8">
   button { border:none; padding:.7rem 1.5rem; border-radius:6px; font-size:1rem; cursor:pointer; }
   .btn-primary { background:#1877F2; color:white; }
   .btn-primary:hover { background:#1466D8; }
-  .btn-secondary { background:#e2e8f0; color:#334155; }
-  .btn-secondary:hover { background:#cbd5e1; }
   button:disabled { opacity:.5; cursor:wait; }
   .error { color:#dc2626; font-size:.9rem; margin-top:.5rem; }
-  .toggle { color:#1877F2; cursor:pointer; font-size:.9rem; margin-top:.75rem; display:inline-block; }
-  .toggle:hover { text-decoration:underline; }
+  .saved { color:#16a34a; font-size:.85rem; font-style:italic; margin-top:.25rem; }
 </style></head><body><div class="card">
   <h1>Meta Ads — Authorize</h1>
-  <p>Click below to sign in with Facebook and grant access to your Meta ad accounts.</p>
-  <span class="toggle" id="toggle-custom">I want to use my own Meta App credentials</span>
-  <div class="custom-fields" id="custom-fields">
+  <p>Enter your Meta App credentials and sign in with Facebook to grant access to your ad accounts.</p>
+  <p class="hint">Create an app at <a href="https://developers.facebook.com/apps/" target="_blank">Meta for Developers &rarr; My Apps</a>.
+  Required permissions: <strong>ads_management</strong>, <strong>ads_read</strong>, <strong>business_management</strong>.</p>
+  <div>
     <label>App ID</label>
-    <div class="hint">From <a href="https://developers.facebook.com/apps/" target="_blank">Meta for Developers &rarr; My Apps</a></div>
-    <input id="custom-id" placeholder="123456789012345">
+    <input id="app-id" placeholder="123456789012345">
+    <div id="id-saved" class="saved"></div>
     <label>App Secret</label>
-    <input id="custom-secret" placeholder="abc123def456..." type="password">
+    <input id="app-secret" placeholder="abc123def456..." type="password">
+    <div id="secret-saved" class="saved"></div>
   </div>
   <div class="buttons">
     <button class="btn-primary" id="btn-go">Sign in with Facebook</button>
@@ -143,32 +140,36 @@ const OPEN_PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8">
   <div id="open-error" class="error"></div>
 </div>
 <script>
-const toggle = document.getElementById('toggle-custom');
-const fields = document.getElementById('custom-fields');
-let showCustom = false;
-toggle.onclick = () => {
-  showCustom = !showCustom;
-  fields.classList.toggle('show', showCustom);
-  toggle.textContent = showCustom
-    ? 'Use default app credentials'
-    : 'I want to use my own Meta App credentials';
-};
+(async () => {
+  try {
+    const res = await fetch('/saved-credentials');
+    const data = await res.json();
+    if (data.app_id) {
+      document.getElementById('app-id').value = data.app_id;
+      document.getElementById('id-saved').textContent = 'Loaded from saved config';
+    }
+    if (data.has_secret) {
+      document.getElementById('app-secret').placeholder = String.fromCharCode(8226).repeat(8) + '  (saved — leave empty to keep)';
+      document.getElementById('secret-saved').textContent = 'Saved secret will be used if left empty';
+    }
+  } catch {}
+})();
 
 document.getElementById('btn-go').onclick = async () => {
   const btn = document.getElementById('btn-go');
   const errEl = document.getElementById('open-error');
   errEl.textContent = '';
-  const appId = document.getElementById('custom-id').value.trim();
-  const appSecret = document.getElementById('custom-secret').value.trim();
-  if (showCustom && (!appId || !appSecret)) {
-    errEl.textContent = 'Both App ID and App Secret are required, or collapse the section to use the default app.';
+  const appId = document.getElementById('app-id').value.trim();
+  const appSecret = document.getElementById('app-secret').value.trim();
+  if (!appId) {
+    errEl.textContent = 'App ID is required. Get it from Meta for Developers > My Apps.';
     return;
   }
   btn.disabled = true;
   try {
     const res = await fetch('/start-oauth', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(showCustom ? { app_id: appId, app_secret: appSecret } : {})
+      body: JSON.stringify({ app_id: appId, app_secret: appSecret || undefined })
     });
     const data = await res.json();
     if (data.error) { errEl.textContent = data.error; btn.disabled = false; return; }
@@ -206,9 +207,10 @@ const SETUP_PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8">
   </div>
   <div id="accounts-step">
     <h1>Meta Ads Setup</h1>
-    <p>Authorization complete. Select your ad account and configure safety settings.</p>
+    <p>Authorization complete. Select a default ad account and configure safety settings.</p>
     <div class="step">
-      <label>Ad Account</label>
+      <label>Initial Ad Account</label>
+      <div class="hint">This is just the initial default. You can switch accounts anytime in the chat using the available tools.</div>
       <select id="account-select"></select>
     </div>
     <div class="step">
@@ -339,17 +341,28 @@ export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: stri
       return;
     }
 
+    if (url.pathname === '/saved-credentials' && req.method === 'GET') {
+      json(200, {
+        app_id: cfg.appId || '',
+        has_secret: !!cfg.appSecret,
+      });
+      return;
+    }
+
     if (url.pathname === '/start-oauth' && req.method === 'POST') {
       if (!oauthState) { json(404, { error: 'Authorization flow not active' }); return; }
       try {
         const body = JSON.parse(await readBody(req));
-        const customId = (body.app_id || '').trim();
-        const customSecret = (body.app_secret || '').trim();
-        if (customId && customSecret) {
-          cfg.appId = customId;
-          cfg.appSecret = customSecret;
-          await saveConfig({ appId: customId, appSecret: customSecret });
-        }
+        const newId = (body.app_id || '').trim();
+        const newSecret = (body.app_secret || '').trim();
+        if (!newId) { json(400, { error: 'App ID is required.' }); return; }
+        const effectiveSecret = newSecret || cfg.appSecret;
+        if (!effectiveSecret) { json(400, { error: 'App Secret is required. Enter it in the form above.' }); return; }
+        cfg.appId = newId;
+        cfg.appSecret = effectiveSecret;
+        const toSave: Record<string, string> = { appId: newId };
+        if (newSecret) toSave['appSecret'] = newSecret;
+        await saveConfig(toSave);
         const authUrl = buildAuthUrl(cfg.appId, oauthState.stateParam, oauthState.port);
         oauthState.authUrl = authUrl;
         json(200, { url: authUrl });

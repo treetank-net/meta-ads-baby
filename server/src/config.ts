@@ -1,6 +1,5 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { META_APP_ID, META_APP_SECRET } from './constants.js';
 
 export interface MetaAdsConfig {
   appId: string;
@@ -72,8 +71,8 @@ export async function configFromEnv(): Promise<MetaAdsConfig> {
   if (confirmStateTtlSeconds) process.env['META_ADS_CONFIRM_STATE_TTL_SECONDS'] ||= confirmStateTtlSeconds;
 
   return {
-    appId: env('META_ADS_APP_ID') || saved.appId || META_APP_ID,
-    appSecret: env('META_ADS_APP_SECRET') || saved.appSecret || META_APP_SECRET,
+    appId: env('META_ADS_APP_ID') || saved.appId || '',
+    appSecret: env('META_ADS_APP_SECRET') || saved.appSecret || '',
     accessToken: env('META_ADS_ACCESS_TOKEN') || saved.accessToken || '',
     safetyLevel: safetyLevel as MetaAdsConfig['safetyLevel'],
     mutationTokenTtlSeconds,
