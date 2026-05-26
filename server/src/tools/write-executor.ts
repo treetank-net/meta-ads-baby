@@ -10,6 +10,7 @@ import {
   updateAd,
   createAdCreative,
   uploadImage,
+  uploadVideo,
   createLookalikeAudience,
   MetaApiError,
 } from '../client.js';
@@ -152,6 +153,49 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
         ratio: p.ratio,
       },
     });
+    return ok(result);
+  }
+
+  if (mutation.action === 'carousel_creative_create') {
+    const result = await createAdCreative(cfg, p.ad_account_id, {
+      name: p.name,
+      object_story_spec: {
+        page_id: p.page_id,
+        link_data: {
+          message: p.message,
+          link: p.link,
+          child_attachments: p.child_attachments as any[],
+          call_to_action: p.call_to_action as any,
+        },
+      },
+    });
+    return ok(result);
+  }
+
+  if (mutation.action === 'video_creative_create') {
+    const videoData: Record<string, unknown> = {
+      video_id: p.video_id,
+    };
+    if (p.message) videoData['message'] = p.message;
+    if (p.title) videoData['title'] = p.title;
+    if (p.image_hash) videoData['image_hash'] = p.image_hash;
+    if (p.call_to_action) videoData['call_to_action'] = p.call_to_action;
+    const result = await createAdCreative(cfg, p.ad_account_id, {
+      name: p.name,
+      object_story_spec: {
+        page_id: p.page_id,
+        video_data: videoData as any,
+      },
+    });
+    return ok(result);
+  }
+
+  if (mutation.action === 'video_upload') {
+    const source = p.source_type === 'url'
+      ? { fileUrl: p.source_value as string }
+      : { filePath: p.source_value as string };
+    if (p.title) (source as any)['title'] = p.title;
+    const result = await uploadVideo(cfg, p.ad_account_id, { ...source, title: p.title as string | undefined });
     return ok(result);
   }
 

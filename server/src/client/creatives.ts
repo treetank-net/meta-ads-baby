@@ -6,6 +6,14 @@ export interface CallToAction {
   value?: { link?: string };
 }
 
+export interface ChildAttachment {
+  image_hash: string;
+  link: string;
+  name: string;
+  description?: string;
+  call_to_action?: CallToAction;
+}
+
 export interface LinkData {
   image_hash?: string;
   link: string;
@@ -13,6 +21,7 @@ export interface LinkData {
   name?: string;
   description?: string;
   call_to_action?: CallToAction;
+  child_attachments?: ChildAttachment[];
 }
 
 export interface VideoData {
@@ -69,4 +78,39 @@ export interface CreateAdCreativeParams {
 
 export async function createAdCreative(cfg: MetaAdsConfig, adAccountId: string, params: CreateAdCreativeParams): Promise<{ id: string }> {
   return post<{ id: string }>(cfg, `/act_${adAccountId}/adcreatives`, params as unknown as Record<string, unknown>);
+}
+
+export async function uploadVideo(cfg: MetaAdsConfig, adAccountId: string, source: { fileUrl?: string; filePath?: string; title?: string }): Promise<{ id: string }> {
+  const API_VERSION = 'v25.0';
+  const BASE_URL = `https://graph.facebook.com/${API_VERSION}`;
+  const url = `${BASE_URL}/act_${adAccountId}/advideos`;
+
+  if (source.fileUrl) {
+    const params: Record<string, unknown> = { file_url: source.fileUrl };
+    if (source.title) params['title'] = source.title;
+    return post<{ id: string }>(cfg, `/act_${adAccountId}/advideos`, params);
+  }
+
+  if (source.filePath) {
+    const { readFileSync } = await import('fs');
+    const { basename } = await import('path');
+    const fileData = readFileSync(source.filePath);
+    const fileName = basename(source.filePath);
+
+    const formData = new FormData();
+    formData.append('source', new Blob([fileData]), fileName);
+    if (source.title) formData.append('title', source.title);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${cfg.accessToken}` },
+      body: formData,
+    });
+
+    const json = await res.json() as { id?: string; error?: import('./core.js').GraphApiError };
+    if (json.error) throw new (await import('./core.js')).MetaApiError(json.error, res.status);
+    return { id: json.id! };
+  }
+
+  throw new Error('Either fileUrl or filePath must be provided for video upload');
 }
