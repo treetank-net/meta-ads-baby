@@ -54,10 +54,12 @@ export interface CreateCampaignParams {
 }
 
 export async function createCampaign(cfg: MetaAdsConfig, adAccountId: string, params: CreateCampaignParams): Promise<{ id: string }> {
+  const hasCampaignBudget = !!(params.daily_budget || params.lifetime_budget);
   return post<{ id: string }>(cfg, `/act_${adAccountId}/campaigns`, {
     ...params,
     status: params.status || 'PAUSED',
     special_ad_categories: params.special_ad_categories || ['NONE'],
+    ...(!hasCampaignBudget && { is_adset_budget_sharing_enabled: false }),
   });
 }
 

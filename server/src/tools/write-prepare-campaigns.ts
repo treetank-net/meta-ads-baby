@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
+import { getAdAccount } from '../client.js';
 import { validateAdAccount, validationResult, prepareResponse, budgetWarning, formatBudget } from './write-helpers.js';
 import {
   adAccountIdSchema,
@@ -154,10 +155,12 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       end_time: z.string().optional().describe('End time in ISO 8601 format (required for lifetime budgets)'),
       status: campaignStatusSchema.default('PAUSED').describe('Initial ad set status'),
       bid_amount: z.number().positive().optional().describe('Bid amount in cents for manual bidding'),
+      dsa_beneficiary: z.string().optional().describe('DSA beneficiary name (EU requirement). Auto-fetched from ad account if not provided.'),
+      dsa_payor: z.string().optional().describe('DSA payor name (EU requirement). Auto-fetched from ad account if not provided.'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, campaign_id, name, daily_budget, lifetime_budget, billing_event, optimization_goal, targeting, start_time, end_time, status, bid_amount, safe_word, temp_id }) => {
+    async ({ ad_account_id, campaign_id, name, daily_budget, lifetime_budget, billing_event, optimization_goal, targeting, start_time, end_time, status, bid_amount, dsa_beneficiary, dsa_payor, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!daily_budget && !lifetime_budget) {
@@ -173,6 +176,17 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         return validationResult('end_time is required when using lifetime_budget.');
       }
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+
+      let resolvedDsaBeneficiary = dsa_beneficiary;
+      let resolvedDsaPayor = dsa_payor;
+      if (!resolvedDsaBeneficiary || !resolvedDsaPayor) {
+        try {
+          const account = await getAdAccount(cfg, normalizedAccountId);
+          resolvedDsaBeneficiary ||= account.default_dsa_beneficiary;
+          resolvedDsaPayor ||= account.default_dsa_payor;
+        } catch { /* non-fatal */ }
+      }
+
       const budgetLine = daily_budget
         ? `Daily budget: ${formatBudget(daily_budget)}`
         : `Lifetime budget: ${formatBudget(lifetime_budget!)}`;
@@ -186,6 +200,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       if (start_time) lines.push(`Start: ${start_time}`);
       if (end_time) lines.push(`End: ${end_time}`);
       if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount)}`);
+      if (resolvedDsaBeneficiary) lines.push(`DSA beneficiary: ${resolvedDsaBeneficiary}`);
+      if (resolvedDsaPayor) lines.push(`DSA payor: ${resolvedDsaPayor}`);
       const warning = daily_budget ? budgetWarning(daily_budget) : '';
       if (warning) lines.push(warning);
       const preview = lines.join('\n');
@@ -202,6 +218,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         end_time,
         status,
         bid_amount: bid_amount ? String(bid_amount) : undefined,
+        dsa_beneficiary: resolvedDsaBeneficiary,
+        dsa_payor: resolvedDsaPayor,
       }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },

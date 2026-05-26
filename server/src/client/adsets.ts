@@ -78,6 +78,8 @@ export interface CreateAdSetParams {
   end_time?: string;
   promoted_object?: Record<string, unknown>;
   destination_type?: string;
+  dsa_beneficiary?: string;
+  dsa_payor?: string;
 }
 
 export async function createAdSet(cfg: MetaAdsConfig, adAccountId: string, params: CreateAdSetParams): Promise<{ id: string }> {

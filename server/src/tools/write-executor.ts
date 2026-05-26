@@ -75,6 +75,8 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
       start_time: p.start_time,
       end_time: p.end_time,
       bid_amount: p.bid_amount,
+      dsa_beneficiary: p.dsa_beneficiary,
+      dsa_payor: p.dsa_payor,
     });
     return ok(result);
   }

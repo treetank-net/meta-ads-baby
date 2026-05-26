@@ -15,12 +15,15 @@ export interface AdAccount {
   business_country_code?: string;
   min_daily_budget?: number;
   created_time?: string;
+  default_dsa_beneficiary?: string;
+  default_dsa_payor?: string;
 }
 
 const AD_ACCOUNT_FIELDS = [
   'id', 'account_id', 'name', 'account_status', 'currency',
   'timezone_name', 'amount_spent', 'balance', 'spend_cap',
   'business_name', 'business_country_code', 'min_daily_budget', 'created_time',
+  'default_dsa_beneficiary', 'default_dsa_payor',
 ].join(',');
 
 export const ACCOUNT_STATUS_LABELS: Record<number, string> = {
