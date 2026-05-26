@@ -1,5 +1,17 @@
 stages:
+  - pages
   - mirror
+
+pages:
+  stage: pages
+  only:
+    - master
+  script:
+    - mkdir -p public
+    - cp docs/callback.html public/callback.html
+  artifacts:
+    paths:
+      - public
 
 mirror-github:
   stage: mirror
