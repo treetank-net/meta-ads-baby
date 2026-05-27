@@ -83,13 +83,15 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
   }
 
   if (mutation.action === 'ad_create') {
-    const result = await createAd(cfg, p.ad_account_id, {
+    const params: Record<string, unknown> = {
       name: p.name,
       adset_id: p.ad_set_id,
       creative: { creative_id: p.creative_id },
       status: p.status,
-      tracking_specs: p.tracking_specs,
-    });
+    };
+    if (p.tracking_specs) params['tracking_specs'] = p.tracking_specs;
+    if (p.multi_advertiser_enabled !== undefined) params['multi_advertiser_enabled'] = p.multi_advertiser_enabled;
+    const result = await createAd(cfg, p.ad_account_id, params as any);
     return ok(result);
   }
 
@@ -229,6 +231,7 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
     if (p.status) params['status'] = p.status;
     if (p.creative_id) params['creative'] = { creative_id: p.creative_id };
     if (p.tracking_specs) params['tracking_specs'] = p.tracking_specs;
+    if (p.multi_advertiser_enabled !== undefined) params['multi_advertiser_enabled'] = p.multi_advertiser_enabled;
     const result = await updateAd(cfg, p.ad_id, params);
     return ok(result);
   }
@@ -267,6 +270,20 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
         },
       },
     });
+    return ok(result);
+  }
+
+  if (mutation.action === 'advantage_creative_create') {
+    const spec = p.asset_feed_spec as Record<string, unknown>;
+    const creativeParams: Record<string, unknown> = {
+      name: p.name,
+      asset_feed_spec: spec,
+      object_story_spec: {
+        page_id: p.page_id,
+        link_data: { link: p.link_url },
+      },
+    };
+    const result = await createAdCreative(cfg, p.ad_account_id, creativeParams as any);
     return ok(result);
   }
 

@@ -101,9 +101,43 @@ export const adUpdateSchema = z.object({
   status: entityStatusSchema.optional().describe('New ad status'),
   creative_id: z.string().optional().describe('New ad creative ID'),
   tracking_specs: z.array(trackingSpecSchema).optional().describe('Tracking specs for conversion tracking (pixel events)'),
+  multi_advertiser_enabled: z.boolean().optional().describe('Enable/disable multi-advertiser ads'),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
+
+export const assetFeedImageSchema = z.object({
+  hash: z.string().describe('Image hash from prepare_image_upload'),
+  image_crops: z.record(z.array(z.array(z.number()))).optional().describe('Crop specs per placement, e.g. {"100x100": [[0,0],[100,100]]}'),
+});
+
+export const assetFeedBodySchema = z.object({
+  text: z.string().min(1).describe('Body text variant'),
+});
+
+export const assetFeedTitleSchema = z.object({
+  text: z.string().min(1).describe('Headline variant'),
+});
+
+export const assetFeedDescriptionSchema = z.object({
+  text: z.string().min(1).describe('Description variant'),
+});
+
+export const assetFeedVideoSchema = z.object({
+  video_id: z.string().describe('Video ID from prepare_video_upload'),
+  thumbnail_hash: z.string().optional().describe('Thumbnail image hash'),
+});
+
+export const assetFeedSpecSchema = z.object({
+  images: z.array(assetFeedImageSchema).optional().describe('Multiple image variants (different formats: 1200x628, 1080x1080, 1080x1920)'),
+  videos: z.array(assetFeedVideoSchema).optional().describe('Multiple video variants'),
+  bodies: z.array(assetFeedBodySchema).min(1).describe('Body text variants (up to 5)'),
+  titles: z.array(assetFeedTitleSchema).optional().describe('Headline variants (up to 5)'),
+  descriptions: z.array(assetFeedDescriptionSchema).optional().describe('Description variants'),
+  call_to_action_types: z.array(z.string()).optional().describe('CTA types, e.g. ["LEARN_MORE", "SHOP_NOW"]'),
+  link_urls: z.array(z.object({ website_url: z.string().url() })).optional().describe('Link URL variants'),
+  ad_formats: z.array(z.string()).optional().describe('Ad formats, e.g. ["SINGLE_IMAGE", "CAROUSEL"]'),
+}).describe('Asset feed spec for Advantage+ Creative with multiple image/text/headline variants');
 
 export const cloneEntitySchema = z.object({
   ad_account_id: adAccountIdSchema,

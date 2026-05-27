@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema, trackingSpecSchema } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema, trackingSpecSchema, assetFeedSpecSchema } from './write-schemas.js';
 
 export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -17,15 +17,17 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       creative_id: z.string().describe('Existing ad creative ID'),
       status: campaignStatusSchema.default('PAUSED').describe('Initial ad status'),
       tracking_specs: z.array(trackingSpecSchema).optional().describe('Tracking specs for conversion tracking (pixel events)'),
+      multi_advertiser_enabled: z.boolean().optional().describe('Enable/disable multi-advertiser ads (default: false recommended)'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_set_id, name, creative_id, status, tracking_specs, safe_word, temp_id }) => {
+    async ({ ad_account_id, ad_set_id, name, creative_id, status, tracking_specs, multi_advertiser_enabled, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
       const lines = [`Create ${status} ad "${name}" in ad set ${ad_set_id} with creative ${creative_id} on account ${normalizedAccountId}`];
       if (tracking_specs) lines.push(`Tracking specs: ${JSON.stringify(tracking_specs)}`);
+      if (multi_advertiser_enabled !== undefined) lines.push(`Multi-advertiser: ${multi_advertiser_enabled}`);
       const preview = lines.join('\n');
       const mutation = createToken('ad_create', {
         ad_account_id: normalizedAccountId,
@@ -34,6 +36,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         creative_id,
         status,
         tracking_specs,
+        multi_advertiser_enabled,
       }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
@@ -160,10 +163,10 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
     'prepare_ad_update',
     'Prepare an update to an existing Meta ad (name, status, creative, tracking_specs). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
     adUpdateSchema.shape,
-    async ({ ad_account_id, ad_id, name, status, creative_id, tracking_specs, safe_word, temp_id }) => {
+    async ({ ad_account_id, ad_id, name, status, creative_id, tracking_specs, multi_advertiser_enabled, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
-      if (!name && !status && !creative_id && !tracking_specs) {
+      if (!name && !status && !creative_id && !tracking_specs && multi_advertiser_enabled === undefined) {
         return validationResult('Provide at least one field to update.');
       }
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -172,6 +175,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       if (status) lines.push(`Status: ${status}`);
       if (creative_id) lines.push(`Creative: ${creative_id}`);
       if (tracking_specs) lines.push(`Tracking specs: ${JSON.stringify(tracking_specs)}`);
+      if (multi_advertiser_enabled !== undefined) lines.push(`Multi-advertiser: ${multi_advertiser_enabled}`);
       const preview = lines.join('\n');
       const mutation = createToken('ad_update', {
         ad_account_id: normalizedAccountId,
@@ -180,6 +184,48 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         status,
         creative_id,
         tracking_specs,
+        multi_advertiser_enabled,
+      }, preview, safe_word.trim(), temp_id);
+      return prepareResponse(cfg, mutation, preview);
+    },
+  );
+
+  server.tool(
+    'prepare_advantage_creative',
+    'Prepare creation of an Advantage+ Creative (asset_feed_spec) with multiple image/video variants, text variants, and headline variants in a single creative. Supports image_crops for placement optimization. Returns a preview and confirmation token.',
+    {
+      ad_account_id: adAccountIdSchema,
+      name: z.string().min(1).describe('Creative name'),
+      page_id: z.string().describe('Facebook Page ID to publish the ad from'),
+      link_url: z.string().url().describe('Default destination URL'),
+      asset_feed_spec: assetFeedSpecSchema,
+      safe_word: safeWordSchema,
+      temp_id: tempIdSchema,
+    },
+    async ({ ad_account_id, name, page_id, link_url, asset_feed_spec, safe_word, temp_id }) => {
+      const accountError = validateAdAccount(ad_account_id);
+      if (accountError) return accountError;
+      if (!asset_feed_spec.images?.length && !asset_feed_spec.videos?.length) {
+        return validationResult('Provide at least one image or video in asset_feed_spec.');
+      }
+      const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const lines = [
+        `Create Advantage+ creative "${name}" on account ${normalizedAccountId}`,
+        `Page: ${page_id}`,
+        `Link: ${link_url}`,
+      ];
+      if (asset_feed_spec.images?.length) lines.push(`Images: ${asset_feed_spec.images.length} variant(s)`);
+      if (asset_feed_spec.videos?.length) lines.push(`Videos: ${asset_feed_spec.videos.length} variant(s)`);
+      lines.push(`Body texts: ${asset_feed_spec.bodies.length} variant(s)`);
+      if (asset_feed_spec.titles?.length) lines.push(`Headlines: ${asset_feed_spec.titles.length} variant(s)`);
+      if (asset_feed_spec.descriptions?.length) lines.push(`Descriptions: ${asset_feed_spec.descriptions.length} variant(s)`);
+      const preview = lines.join('\n');
+      const mutation = createToken('advantage_creative_create', {
+        ad_account_id: normalizedAccountId,
+        name,
+        page_id,
+        link_url,
+        asset_feed_spec,
       }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
