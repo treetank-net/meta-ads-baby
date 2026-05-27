@@ -15,6 +15,7 @@ import {
   billingEventSchema,
   optimizationGoalSchema,
   campaignUpdateSchema,
+  promotedObjectSchema,
   MAX_DAILY_BUDGET_CENTS,
   MAX_LIFETIME_BUDGET_CENTS,
 } from './write-schemas.js';
@@ -155,12 +156,13 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       end_time: z.string().optional().describe('End time in ISO 8601 format (required for lifetime budgets)'),
       status: campaignStatusSchema.default('PAUSED').describe('Initial ad set status'),
       bid_amount: z.number().positive().optional().describe('Bid amount in cents for manual bidding'),
+      promoted_object: promotedObjectSchema.optional().describe('Promoted object with pixel tracking (pixel_id, custom_event_type). Required for OFFSITE_CONVERSIONS optimization.'),
       dsa_beneficiary: z.string().optional().describe('DSA beneficiary name (EU requirement). Auto-fetched from ad account if not provided.'),
       dsa_payor: z.string().optional().describe('DSA payor name (EU requirement). Auto-fetched from ad account if not provided.'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, campaign_id, name, daily_budget, lifetime_budget, billing_event, optimization_goal, targeting, start_time, end_time, status, bid_amount, dsa_beneficiary, dsa_payor, safe_word, temp_id }) => {
+    async ({ ad_account_id, campaign_id, name, daily_budget, lifetime_budget, billing_event, optimization_goal, targeting, start_time, end_time, status, bid_amount, promoted_object, dsa_beneficiary, dsa_payor, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       if (!daily_budget && !lifetime_budget) {
@@ -200,6 +202,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       if (start_time) lines.push(`Start: ${start_time}`);
       if (end_time) lines.push(`End: ${end_time}`);
       if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount)}`);
+      if (promoted_object) lines.push(`Promoted object: ${JSON.stringify(promoted_object)}`);
       if (resolvedDsaBeneficiary) lines.push(`DSA beneficiary: ${resolvedDsaBeneficiary}`);
       if (resolvedDsaPayor) lines.push(`DSA payor: ${resolvedDsaPayor}`);
       const warning = daily_budget ? budgetWarning(daily_budget) : '';
@@ -218,6 +221,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         end_time,
         status,
         bid_amount: bid_amount ? String(bid_amount) : undefined,
+        promoted_object,
         dsa_beneficiary: resolvedDsaBeneficiary,
         dsa_payor: resolvedDsaPayor,
       }, preview, safe_word.trim(), temp_id);
@@ -252,7 +256,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_ad_set_update',
-    'Prepare an update to an existing Meta Ads ad set (targeting, budget, optimization, bid, end time). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Prepare an update to an existing Meta Ads ad set (targeting, budget, optimization, bid, end time, promoted_object). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
     {
       ad_account_id: adAccountIdSchema,
       ad_set_id: z.string().describe('Ad set ID to update'),
@@ -262,13 +266,14 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       optimization_goal: optimizationGoalSchema.optional().describe('New optimization goal'),
       bid_amount: z.number().positive().optional().describe('New bid amount in cents'),
       end_time: z.string().optional().describe('New end time in ISO 8601 format'),
+      promoted_object: promotedObjectSchema.optional().describe('Promoted object with pixel tracking (pixel_id, custom_event_type)'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_set_id, targeting, daily_budget, lifetime_budget, optimization_goal, bid_amount, end_time, safe_word, temp_id }) => {
+    async ({ ad_account_id, ad_set_id, targeting, daily_budget, lifetime_budget, optimization_goal, bid_amount, end_time, promoted_object, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
-      if (!targeting && !daily_budget && !lifetime_budget && !optimization_goal && !bid_amount && !end_time) {
+      if (!targeting && !daily_budget && !lifetime_budget && !optimization_goal && !bid_amount && !end_time && !promoted_object) {
         return validationResult('Provide at least one field to update.');
       }
       if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
@@ -285,6 +290,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       if (optimization_goal) lines.push(`Optimization goal: ${optimization_goal}`);
       if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount)}`);
       if (end_time) lines.push(`End time: ${end_time}`);
+      if (promoted_object) lines.push(`Promoted object: ${JSON.stringify(promoted_object)}`);
       const warning = daily_budget ? budgetWarning(daily_budget) : '';
       if (warning) lines.push(warning);
       const preview = lines.join('\n');
@@ -297,6 +303,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         optimization_goal,
         bid_amount: bid_amount ? String(bid_amount) : undefined,
         end_time,
+        promoted_object,
       }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },

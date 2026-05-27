@@ -75,6 +75,7 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
       start_time: p.start_time,
       end_time: p.end_time,
       bid_amount: p.bid_amount,
+      promoted_object: p.promoted_object,
       dsa_beneficiary: p.dsa_beneficiary,
       dsa_payor: p.dsa_payor,
     });
@@ -87,6 +88,7 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
       adset_id: p.ad_set_id,
       creative: { creative_id: p.creative_id },
       status: p.status,
+      tracking_specs: p.tracking_specs,
     });
     return ok(result);
   }
@@ -135,6 +137,7 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
     if (p.optimization_goal) params['optimization_goal'] = p.optimization_goal;
     if (p.bid_amount) params['bid_amount'] = p.bid_amount;
     if (p.end_time) params['end_time'] = p.end_time;
+    if (p.promoted_object) params['promoted_object'] = p.promoted_object;
     const result = await updateAdSet(cfg, p.ad_set_id, params);
     return ok(result);
   }
@@ -225,6 +228,7 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
     if (p.name) params['name'] = p.name;
     if (p.status) params['status'] = p.status;
     if (p.creative_id) params['creative'] = { creative_id: p.creative_id };
+    if (p.tracking_specs) params['tracking_specs'] = p.tracking_specs;
     const result = await updateAd(cfg, p.ad_id, params);
     return ok(result);
   }

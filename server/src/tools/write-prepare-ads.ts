@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema, trackingSpecSchema } from './write-schemas.js';
 
 export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -16,20 +16,24 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       name: z.string().min(1).describe('Ad name'),
       creative_id: z.string().describe('Existing ad creative ID'),
       status: campaignStatusSchema.default('PAUSED').describe('Initial ad status'),
+      tracking_specs: z.array(trackingSpecSchema).optional().describe('Tracking specs for conversion tracking (pixel events)'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
-    async ({ ad_account_id, ad_set_id, name, creative_id, status, safe_word, temp_id }) => {
+    async ({ ad_account_id, ad_set_id, name, creative_id, status, tracking_specs, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
-      const preview = `Create ${status} ad "${name}" in ad set ${ad_set_id} with creative ${creative_id} on account ${normalizedAccountId}`;
+      const lines = [`Create ${status} ad "${name}" in ad set ${ad_set_id} with creative ${creative_id} on account ${normalizedAccountId}`];
+      if (tracking_specs) lines.push(`Tracking specs: ${JSON.stringify(tracking_specs)}`);
+      const preview = lines.join('\n');
       const mutation = createToken('ad_create', {
         ad_account_id: normalizedAccountId,
         ad_set_id,
         name,
         creative_id,
         status,
+        tracking_specs,
       }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },
@@ -154,12 +158,12 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_ad_update',
-    'Prepare an update to an existing Meta ad (name, status, creative). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Prepare an update to an existing Meta ad (name, status, creative, tracking_specs). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
     adUpdateSchema.shape,
-    async ({ ad_account_id, ad_id, name, status, creative_id, safe_word, temp_id }) => {
+    async ({ ad_account_id, ad_id, name, status, creative_id, tracking_specs, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
-      if (!name && !status && !creative_id) {
+      if (!name && !status && !creative_id && !tracking_specs) {
         return validationResult('Provide at least one field to update.');
       }
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
@@ -167,6 +171,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       if (name) lines.push(`Name: ${name}`);
       if (status) lines.push(`Status: ${status}`);
       if (creative_id) lines.push(`Creative: ${creative_id}`);
+      if (tracking_specs) lines.push(`Tracking specs: ${JSON.stringify(tracking_specs)}`);
       const preview = lines.join('\n');
       const mutation = createToken('ad_update', {
         ad_account_id: normalizedAccountId,
@@ -174,6 +179,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
         name,
         status,
         creative_id,
+        tracking_specs,
       }, preview, safe_word.trim(), temp_id);
       return prepareResponse(cfg, mutation, preview);
     },

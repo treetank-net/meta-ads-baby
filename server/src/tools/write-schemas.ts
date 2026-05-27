@@ -82,12 +82,25 @@ export const campaignUpdateSchema = z.object({
   temp_id: tempIdSchema,
 });
 
+export const promotedObjectSchema = z.object({
+  pixel_id: z.string().describe('Facebook Pixel ID'),
+  custom_event_type: z.string().optional().describe('Conversion event type, e.g. PURCHASE, LEAD, COMPLETE_REGISTRATION, ADD_TO_CART, INITIATED_CHECKOUT, SEARCH, CONTENT_VIEW, ADD_PAYMENT_INFO, ADD_TO_WISHLIST, OTHER'),
+  pixel_rule: z.record(z.unknown()).optional().describe('Optional pixel rule for custom conversions'),
+}).describe('Promoted object with pixel tracking configuration');
+
+export const trackingSpecSchema = z.object({
+  'action.type': z.array(z.string()).describe('Action types to track, e.g. ["offsite_conversion"]'),
+  fb_pixel: z.array(z.string()).optional().describe('Pixel IDs to track'),
+  'fb_pixel_event': z.array(z.string()).optional().describe('Pixel event names, e.g. ["fb_pixel_purchase"]'),
+}).describe('Tracking spec for conversion tracking on ads');
+
 export const adUpdateSchema = z.object({
   ad_account_id: adAccountIdSchema,
   ad_id: z.string().describe('Ad ID to update'),
   name: z.string().min(1).optional().describe('New ad name'),
   status: entityStatusSchema.optional().describe('New ad status'),
   creative_id: z.string().optional().describe('New ad creative ID'),
+  tracking_specs: z.array(trackingSpecSchema).optional().describe('Tracking specs for conversion tracking (pixel events)'),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
