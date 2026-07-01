@@ -37,7 +37,7 @@ client/
   index.ts                — barrel re-export
 
 tools/
-  auth.ts                 — setup_meta_auth, check_update
+  auth.ts                 — setup_meta_auth, update_plugin
   read.ts                 — orchestrator: registerReadTools()
   read-helpers.ts         — schemas, query builders, pure functions
   read-accounts.ts        — list_ad_accounts, get_campaigns, get_ad_sets, get_ads, get_insights, get_ad_creatives, get_audiences

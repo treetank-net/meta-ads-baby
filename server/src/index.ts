@@ -8,7 +8,7 @@ import { registerAuthTools } from './tools/auth.js';
 async function main() {
   const server = new McpServer({
     name: 'meta-ads-baby',
-    version: '0.1.0',
+    version: '0.13.0',
   });
 
   const cfg = await configFromEnv();
