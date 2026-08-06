@@ -2,7 +2,25 @@ import { z } from 'zod';
 
 export const MAX_DAILY_BUDGET_CENTS = 50000_00;
 export const MAX_LIFETIME_BUDGET_CENTS = 500000_00;
+export const MAX_BID_AMOUNT_CENTS = 5000_00;
+export const MAX_SPEND_CAP_CENTS = 500000_00;
 export const BUDGET_WARNING_CENTS = 500_00;
+
+export const AMOUNT_FIELD_LIMITS: Record<string, { max: number; label: string }> = {
+  daily_budget: { max: MAX_DAILY_BUDGET_CENTS, label: 'Daily budget' },
+  lifetime_budget: { max: MAX_LIFETIME_BUDGET_CENTS, label: 'Lifetime budget' },
+  bid_amount: { max: MAX_BID_AMOUNT_CENTS, label: 'Bid amount' },
+  spend_cap: { max: MAX_SPEND_CAP_CENTS, label: 'Spend cap' },
+};
+
+export const MAX_SPECIAL_AD_CATEGORIES_PER_MUTATION = 6;
+export const MAX_TRACKING_SPECS_PER_MUTATION = 10;
+export const MAX_TRACKING_SPEC_VALUES_PER_MUTATION = 20;
+export const MAX_ASSET_FEED_MEDIA_PER_MUTATION = 10;
+export const MAX_ASSET_FEED_TEXTS_PER_MUTATION = 5;
+export const MAX_ASSET_FEED_CTA_TYPES_PER_MUTATION = 5;
+export const MAX_ASSET_FEED_LINK_URLS_PER_MUTATION = 10;
+export const MAX_ASSET_FEED_AD_FORMATS_PER_MUTATION = 5;
 
 export const CODEX_HOOK_INSTALL_COMMAND = 'npx codex-marketplace add treetank-net/meta-ads-baby/hooks/meta-ads-baby-safety --hook --global';
 
@@ -89,9 +107,9 @@ export const promotedObjectSchema = z.object({
 }).describe('Promoted object with pixel tracking configuration');
 
 export const trackingSpecSchema = z.object({
-  'action.type': z.array(z.string()).describe('Action types to track, e.g. ["offsite_conversion"]'),
-  fb_pixel: z.array(z.string()).optional().describe('Pixel IDs to track'),
-  'fb_pixel_event': z.array(z.string()).optional().describe('Pixel event names, e.g. ["fb_pixel_purchase"]'),
+  'action.type': z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).describe('Action types to track, e.g. ["offsite_conversion"]'),
+  fb_pixel: z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).optional().describe('Pixel IDs to track'),
+  'fb_pixel_event': z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).optional().describe('Pixel event names, e.g. ["fb_pixel_purchase"]'),
 }).describe('Tracking spec for conversion tracking on ads');
 
 export const adUpdateSchema = z.object({
@@ -100,7 +118,7 @@ export const adUpdateSchema = z.object({
   name: z.string().min(1).optional().describe('New ad name'),
   status: entityStatusSchema.optional().describe('New ad status'),
   creative_id: z.string().optional().describe('New ad creative ID'),
-  tracking_specs: z.array(trackingSpecSchema).optional().describe('Tracking specs for conversion tracking (pixel events)'),
+  tracking_specs: z.array(trackingSpecSchema).max(MAX_TRACKING_SPECS_PER_MUTATION).optional().describe('Tracking specs for conversion tracking (pixel events)'),
   multi_advertiser_enabled: z.boolean().optional().describe('Enable/disable multi-advertiser ads'),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
@@ -129,14 +147,14 @@ export const assetFeedVideoSchema = z.object({
 });
 
 export const assetFeedSpecSchema = z.object({
-  images: z.array(assetFeedImageSchema).optional().describe('Multiple image variants (different formats: 1200x628, 1080x1080, 1080x1920)'),
-  videos: z.array(assetFeedVideoSchema).optional().describe('Multiple video variants'),
-  bodies: z.array(assetFeedBodySchema).min(1).describe('Body text variants (up to 5)'),
-  titles: z.array(assetFeedTitleSchema).optional().describe('Headline variants (up to 5)'),
-  descriptions: z.array(assetFeedDescriptionSchema).optional().describe('Description variants'),
-  call_to_action_types: z.array(z.string()).optional().describe('CTA types, e.g. ["LEARN_MORE", "SHOP_NOW"]'),
-  link_urls: z.array(z.object({ website_url: z.string().url() })).optional().describe('Link URL variants'),
-  ad_formats: z.array(z.string()).optional().describe('Ad formats, e.g. ["SINGLE_IMAGE", "CAROUSEL"]'),
+  images: z.array(assetFeedImageSchema).max(MAX_ASSET_FEED_MEDIA_PER_MUTATION).optional().describe('Multiple image variants (different formats: 1200x628, 1080x1080, 1080x1920), up to 10'),
+  videos: z.array(assetFeedVideoSchema).max(MAX_ASSET_FEED_MEDIA_PER_MUTATION).optional().describe('Multiple video variants, up to 10'),
+  bodies: z.array(assetFeedBodySchema).min(1).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).describe('Body text variants (up to 5)'),
+  titles: z.array(assetFeedTitleSchema).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).optional().describe('Headline variants (up to 5)'),
+  descriptions: z.array(assetFeedDescriptionSchema).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).optional().describe('Description variants (up to 5)'),
+  call_to_action_types: z.array(z.string()).max(MAX_ASSET_FEED_CTA_TYPES_PER_MUTATION).optional().describe('CTA types, e.g. ["LEARN_MORE", "SHOP_NOW"]'),
+  link_urls: z.array(z.object({ website_url: z.string().url() })).max(MAX_ASSET_FEED_LINK_URLS_PER_MUTATION).optional().describe('Link URL variants'),
+  ad_formats: z.array(z.string()).max(MAX_ASSET_FEED_AD_FORMATS_PER_MUTATION).optional().describe('Ad formats, e.g. ["SINGLE_IMAGE", "CAROUSEL"]'),
 }).describe('Asset feed spec for Advantage+ Creative with multiple image/text/headline variants');
 
 export const cloneEntitySchema = z.object({

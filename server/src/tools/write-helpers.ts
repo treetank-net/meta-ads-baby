@@ -1,7 +1,7 @@
 import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId, requireAdAccountId } from '../validation.js';
 import { createToken, getTokenTtlSeconds } from '../confirm.js';
-import { BUDGET_WARNING_CENTS, CODEX_HOOK_INSTALL_COMMAND } from './write-schemas.js';
+import { BUDGET_WARNING_CENTS, CODEX_HOOK_INSTALL_COMMAND, AMOUNT_FIELD_LIMITS } from './write-schemas.js';
 
 export function validateAdAccount(adAccountId: string) {
   const error = requireAdAccountId(adAccountId);
@@ -15,6 +15,32 @@ export function validationResult(message: string) {
 
 export function formatBudget(cents: number, currency = 'PLN'): string {
   return `${(cents / 100).toFixed(2)} ${currency}`;
+}
+
+export function amountFieldLimitError(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const nested = amountFieldLimitError(item);
+      if (nested) return nested;
+    }
+    return null;
+  }
+  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+    const limit = AMOUNT_FIELD_LIMITS[key];
+    if (limit) {
+      const amount = typeof value === 'string' ? Number(value) : value;
+      if (typeof amount === 'number' && Number.isFinite(amount) && amount > limit.max) {
+        return `${limit.label} ${formatBudget(amount)} exceeds safety limit of ${formatBudget(limit.max)}.`;
+      }
+      continue;
+    }
+    if (value && typeof value === 'object') {
+      const nested = amountFieldLimitError(value);
+      if (nested) return nested;
+    }
+  }
+  return null;
 }
 
 export function budgetWarning(dailyCents: number): string {

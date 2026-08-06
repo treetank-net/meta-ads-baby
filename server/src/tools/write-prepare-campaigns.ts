@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { getAdAccount } from '../client.js';
-import { validateAdAccount, validationResult, prepareResponse, budgetWarning, formatBudget } from './write-helpers.js';
+import { validateAdAccount, validationResult, prepareResponse, budgetWarning, formatBudget, amountFieldLimitError } from './write-helpers.js';
 import {
   adAccountIdSchema,
   safeWordSchema,
@@ -16,8 +16,7 @@ import {
   optimizationGoalSchema,
   campaignUpdateSchema,
   promotedObjectSchema,
-  MAX_DAILY_BUDGET_CENTS,
-  MAX_LIFETIME_BUDGET_CENTS,
+  MAX_SPECIAL_AD_CATEGORIES_PER_MUTATION,
 } from './write-schemas.js';
 
 export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
@@ -64,12 +63,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       if (!daily_budget && !lifetime_budget) {
         return validationResult('Provide daily_budget or lifetime_budget (in cents).');
       }
-      if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
-        return validationResult(`Daily budget ${formatBudget(daily_budget)} exceeds safety limit of ${formatBudget(MAX_DAILY_BUDGET_CENTS)}.`);
-      }
-      if (lifetime_budget && lifetime_budget > MAX_LIFETIME_BUDGET_CENTS) {
-        return validationResult(`Lifetime budget ${formatBudget(lifetime_budget)} exceeds safety limit of ${formatBudget(MAX_LIFETIME_BUDGET_CENTS)}.`);
-      }
+      const amountError = amountFieldLimitError({ daily_budget, lifetime_budget });
+      if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
       const budgetDesc = daily_budget
         ? `daily budget to ${formatBudget(daily_budget)}`
@@ -95,7 +90,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       name: z.string().min(1).describe('Campaign name'),
       objective: objectiveSchema.describe('Campaign objective'),
       status: campaignStatusSchema.default('PAUSED').describe('Initial campaign status'),
-      special_ad_categories: z.array(z.string()).default(['NONE']).describe('Special ad categories, e.g. HOUSING, EMPLOYMENT, CREDIT, or NONE'),
+      special_ad_categories: z.array(z.string()).max(MAX_SPECIAL_AD_CATEGORIES_PER_MUTATION).default(['NONE']).describe('Special ad categories, e.g. HOUSING, EMPLOYMENT, CREDIT, or NONE'),
       daily_budget: z.number().positive().optional().describe('Daily budget in cents (currency minor units)'),
       lifetime_budget: z.number().positive().optional().describe('Lifetime budget in cents (currency minor units)'),
       bid_strategy: z.string().optional().describe('Bid strategy, e.g. LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP'),
@@ -105,12 +100,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
     async ({ ad_account_id, name, objective, status, special_ad_categories, daily_budget, lifetime_budget, bid_strategy, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
       if (accountError) return accountError;
-      if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
-        return validationResult(`Daily budget ${formatBudget(daily_budget)} exceeds safety limit of ${formatBudget(MAX_DAILY_BUDGET_CENTS)}.`);
-      }
-      if (lifetime_budget && lifetime_budget > MAX_LIFETIME_BUDGET_CENTS) {
-        return validationResult(`Lifetime budget ${formatBudget(lifetime_budget)} exceeds safety limit of ${formatBudget(MAX_LIFETIME_BUDGET_CENTS)}.`);
-      }
+      const amountError = amountFieldLimitError({ daily_budget, lifetime_budget });
+      if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
       const budgetLine = daily_budget
         ? `Daily budget: ${formatBudget(daily_budget)}`
@@ -168,12 +159,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       if (!daily_budget && !lifetime_budget) {
         return validationResult('Provide daily_budget or lifetime_budget (in cents).');
       }
-      if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
-        return validationResult(`Daily budget ${formatBudget(daily_budget)} exceeds safety limit of ${formatBudget(MAX_DAILY_BUDGET_CENTS)}.`);
-      }
-      if (lifetime_budget && lifetime_budget > MAX_LIFETIME_BUDGET_CENTS) {
-        return validationResult(`Lifetime budget ${formatBudget(lifetime_budget)} exceeds safety limit of ${formatBudget(MAX_LIFETIME_BUDGET_CENTS)}.`);
-      }
+      const amountError = amountFieldLimitError({ daily_budget, lifetime_budget, bid_amount });
+      if (amountError) return validationResult(amountError);
       if (lifetime_budget && !end_time) {
         return validationResult('end_time is required when using lifetime_budget.');
       }
@@ -276,12 +263,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       if (!targeting && !daily_budget && !lifetime_budget && !optimization_goal && !bid_amount && !end_time && !promoted_object) {
         return validationResult('Provide at least one field to update.');
       }
-      if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
-        return validationResult(`Daily budget ${formatBudget(daily_budget)} exceeds safety limit of ${formatBudget(MAX_DAILY_BUDGET_CENTS)}.`);
-      }
-      if (lifetime_budget && lifetime_budget > MAX_LIFETIME_BUDGET_CENTS) {
-        return validationResult(`Lifetime budget ${formatBudget(lifetime_budget)} exceeds safety limit of ${formatBudget(MAX_LIFETIME_BUDGET_CENTS)}.`);
-      }
+      const amountError = amountFieldLimitError({ daily_budget, lifetime_budget, bid_amount });
+      if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
       const lines = [`Update ad set ${ad_set_id} on account ${normalizedAccountId}`];
       if (targeting) lines.push(`Targeting: ${JSON.stringify(targeting)}`);
@@ -363,9 +346,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       if (!name && !spend_cap && !bid_strategy && !daily_budget && !status) {
         return validationResult('Provide at least one field to update.');
       }
-      if (daily_budget && daily_budget > MAX_DAILY_BUDGET_CENTS) {
-        return validationResult(`Daily budget ${formatBudget(daily_budget)} exceeds safety limit of ${formatBudget(MAX_DAILY_BUDGET_CENTS)}.`);
-      }
+      const amountError = amountFieldLimitError({ daily_budget, spend_cap });
+      if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
       const lines = [`Update campaign ${campaign_id} on account ${normalizedAccountId}`];
       if (name) lines.push(`Name: ${name}`);

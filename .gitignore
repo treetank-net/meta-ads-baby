@@ -12,3 +12,4 @@ config.json
 *.pfx
 credentials.json
 token.json
+dist-test/

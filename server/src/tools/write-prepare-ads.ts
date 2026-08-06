@@ -4,7 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema, trackingSpecSchema, assetFeedSpecSchema } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema, trackingSpecSchema, assetFeedSpecSchema, MAX_TRACKING_SPECS_PER_MUTATION } from './write-schemas.js';
 
 export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
@@ -16,7 +16,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
       name: z.string().min(1).describe('Ad name'),
       creative_id: z.string().describe('Existing ad creative ID'),
       status: campaignStatusSchema.default('PAUSED').describe('Initial ad status'),
-      tracking_specs: z.array(trackingSpecSchema).optional().describe('Tracking specs for conversion tracking (pixel events)'),
+      tracking_specs: z.array(trackingSpecSchema).max(MAX_TRACKING_SPECS_PER_MUTATION).optional().describe('Tracking specs for conversion tracking (pixel events)'),
       multi_advertiser_enabled: z.boolean().optional().describe('Enable/disable multi-advertiser ads (default: false recommended)'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
