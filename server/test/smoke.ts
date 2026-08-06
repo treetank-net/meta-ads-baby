@@ -13,6 +13,8 @@ import {
 } from '../src/tools/write-schemas.js';
 import { amountFieldLimitError, formatBudget } from '../src/tools/write-helpers.js';
 import { toTsv, tsvDocument, flattenRow, trimPrecision, paginate, pageNote, DEFAULT_PAGE_CHARS } from '../src/tools/format.js';
+import { PLUGIN_VERSION } from '../src/constants.js';
+import { readFileSync } from 'fs';
 
 let passed = 0;
 let failed = 0;
@@ -254,6 +256,9 @@ function testToolContract() {
 
   const prepareTools = Object.keys(tools).filter((n) => n.startsWith('prepare_'));
   assert('every prepare tool takes a safe_word', prepareTools.every((n) => toolFieldNames(tools[n]).includes('safe_word')), prepareTools.filter((n) => !toolFieldNames(tools[n]).includes('safe_word')).join(', '));
+
+  const pkgVersion = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+  assert('PLUGIN_VERSION matches package.json', PLUGIN_VERSION === pkgVersion, `constant=${PLUGIN_VERSION} package=${pkgVersion}`);
 
   const listReadTools = ['list_ad_accounts', 'get_campaigns', 'get_ad_sets', 'get_ads', 'get_insights', 'get_ad_creatives', 'get_audiences'];
   for (const name of listReadTools) {

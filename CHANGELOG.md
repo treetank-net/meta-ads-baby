@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.1
+
+### Fixed
+- **The MCP server reported `version: 0.13.0`** — hard-coded in `index.ts`, so clients saw a stale version regardless of the release. It now comes from `PLUGIN_VERSION` in `src/constants.ts`, and a test compares that constant against `package.json` so the drift cannot come back. (Same defect was found and fixed in `google-ads-baby` 0.19.0.)
+
 ## 0.14.0
 
 Read tools returned pretty-printed JSON with no upper bound on rows. `getAll` follows

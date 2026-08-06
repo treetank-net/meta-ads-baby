@@ -4,11 +4,12 @@ import { configFromEnv } from './config.js';
 import { registerReadTools } from './tools/read.js';
 import { registerWriteTools } from './tools/write.js';
 import { registerAuthTools } from './tools/auth.js';
+import { PLUGIN_VERSION } from './constants.js';
 
 async function main() {
   const server = new McpServer({
     name: 'meta-ads-baby',
-    version: '0.13.0',
+    version: PLUGIN_VERSION,
   });
 
   const cfg = await configFromEnv();
