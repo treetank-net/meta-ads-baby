@@ -393,8 +393,12 @@ document.getElementById('btn-save').onclick = async () => {
 export function startAuthFlow(cfg: MetaAdsConfig): { url: string; shortUrl: string; port: number } {
   if (oauthState?.server) oauthState.server.close();
 
-  const stateParam = randomBytes(16).toString('hex');
-  const port = 9876;
+  // Port allocation across the *-baby plugins so two auth flows can run at once:
+  // 9876 = google-ads-baby, 9877 = google-analytics-baby, 9878 = meta-ads-baby.
+  const port = 9878;
+  // The GitHub Pages callback bridge reads the port from the trailing `.<port>`
+  // segment of the state param (older clients without it fall back to 9876).
+  const stateParam = `${randomBytes(16).toString('hex')}.${port}`;
   const redirectUri = `http://localhost:${port}/callback`;
 
   const server = http.createServer(async (req, res) => {

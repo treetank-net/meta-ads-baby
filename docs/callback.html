@@ -5,8 +5,12 @@
   const hash = window.location.hash.substring(1);
   const params = new URLSearchParams(hash);
   const token = params.get('access_token');
+  // The local server encodes its port as the trailing ".<port>" segment of the
+  // state param. Older plugin versions send a plain hex state and listen on 9876.
+  const statePort = (params.get('state') || '').split('.').pop();
+  const port = /^\d{2,5}$/.test(statePort) ? statePort : '9876';
   if (token) {
-    window.location.href = 'http://127.0.0.1:9876/oauth-callback?access_token=' + encodeURIComponent(token);
+    window.location.href = 'http://127.0.0.1:' + port + '/oauth-callback?access_token=' + encodeURIComponent(token);
   } else {
     document.body.textContent = params.get('error_description') || params.get('error') || 'No token received.';
   }

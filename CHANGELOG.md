@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.2
+
+### Fixed
+- **The local OAuth server no longer collides with `google-ads-baby`.** Both plugins listened on port 9876, so authorizing Google Ads and Meta Ads at the same time meant one flow hijacked the other's callback. Meta Ads now uses **9878** (9876 = google-ads-baby, 9877 = google-analytics-baby). The GitHub Pages callback bridge reads the port from the `state` param, so older installs that still listen on 9876 keep working.
+
 ## 0.14.1
 
 ### Fixed

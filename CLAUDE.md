@@ -110,12 +110,18 @@ Business Manager (Meta Business Suite)
 ```
 
 ### OAuth Flow
-1. LLM calls `setup_meta_auth` → starts local HTTP server on port 9876
-2. Browser opens `http://127.0.0.1:9876/open` → landing page with **required** App ID + App Secret fields
+1. LLM calls `setup_meta_auth` → starts local HTTP server on port 9878
+2. Browser opens `http://127.0.0.1:9878/open` → landing page with **required** App ID + App Secret fields
 3. Saved credentials auto-loaded from `~/.meta-ads-baby/config.json`
 4. User clicks "Sign in with Facebook" → Facebook OAuth consent → callback
 5. Server exchanges code → short-lived token → long-lived token (60 days)
 6. Setup page: select initial ad account + safety settings → config saved
+
+Local OAuth port allocation across the *-baby plugins (so several auth flows can run at once):
+9876 = google-ads-baby, 9877 = google-analytics-baby, **9878 = meta-ads-baby**.
+The Facebook redirect goes to the GitHub Pages bridge `docs/callback.html`, which reads the port
+from the trailing `.<port>` segment of the `state` param and falls back to 9876 for older clients —
+so changing the port here requires releasing `docs/callback.html` too.
 
 App ID + App Secret are **always required** (Meta treats App Secret as a real secret, unlike Google).
 No default/built-in credentials. User must create their own Meta App at developers.facebook.com.
