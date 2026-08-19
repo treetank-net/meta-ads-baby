@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.3
+
+### Fixed
+- **`scripts/start-mcp.js` no longer updates the plugin on every start.** Updates happen only through
+  `update_plugin`; the wrapper downloads the runtime files exactly once, when there is no bundle on disk.
+  A stale `raw.githubusercontent.com` cache used to let a start-up fetch overwrite a freshly installed
+  newer copy with older files.
+- **`update_plugin` compares versions with semver ordering instead of string inequality.** A copy newer
+  than the update server is left untouched with an explicit message instead of being silently downgraded.
+- **Downloads are atomic.** Every file lands in `<name>.download` and is renamed into place, so an
+  interrupted update leaves the previous working file instead of a truncated one.
+- **`update_plugin` reports the installed version separately from the running one.** `PLUGIN_VERSION` is
+  compiled into the bundle, so a download that has not been activated yet says so instead of reading as
+  done — a running MCP server cannot swap its own bundle.
+
 ## 0.14.2
 
 ### Fixed

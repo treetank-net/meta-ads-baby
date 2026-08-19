@@ -134,6 +134,15 @@ No default/built-in credentials. User must create their own Meta App at develope
 - **No test mode** — all mutations are live, making safety layer critical
 - Ad account ID format: `act_123456789` (numeric with prefix)
 
+## Aktualizacje
+- JEDYNA ścieżka aktualizacji: tool `update_plugin`. `scripts/start-mcp.js` NIE aktualizuje na starcie —
+  pobiera pliki runtime tylko wtedy, gdy nie ma bundla (stale cache CDN nadpisywał świeższą instalację starszymi plikami).
+- Bramka w `update_plugin` używa porównania semver, nie `!==` — kopia nowsza od serwera aktualizacji zostaje nietknięta.
+- Pobieranie jest atomowe (`<plik>.download` + `renameSync`).
+- `PLUGIN_VERSION` z `constants.ts` jest wkompilowany w bundle i odróżnia wersję POBRANĄ (package.json na dysku)
+  od AKTYWNEJ (kod w pamięci procesu) — proces nie umie podmienić swojego bundla w locie.
+- `update_plugin` nie pobiera `CHANGELOG.md` i nie pokazuje „what's new" (google-ads-baby i report-baby to robią) — do wyrównania.
+
 ## Repo & CI
 - GitLab: `treetank/meta-ads-baby` (origin, primary)
 - GitHub: `treetank-net/meta-ads-baby` (mirror, remote `gh`)

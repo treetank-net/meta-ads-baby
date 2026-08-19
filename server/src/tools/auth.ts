@@ -1,8 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { MetaAdsConfig } from '../config.js';
 import { startAuthFlow } from '../auth.js';
+import { PLUGIN_VERSION } from '../constants.js';
 
 const REPO_RAW = 'https://raw.githubusercontent.com/treetank-net/meta-ads-baby/master';
 
@@ -10,7 +11,7 @@ function getPluginRoot(): string {
   return process.env['CLAUDE_PLUGIN_ROOT'] || process.cwd();
 }
 
-function getLocalVersion(): string {
+function getInstalledVersion(): string {
   try {
     const pkgPath = join(getPluginRoot(), 'package.json');
     return JSON.parse(readFileSync(pkgPath, 'utf-8')).version || '0.0.0';
@@ -20,8 +21,37 @@ function getLocalVersion(): string {
 async function downloadFile(remotePath: string, localPath: string): Promise<boolean> {
   const res = await fetch(`${REPO_RAW}/${remotePath}`);
   if (!res.ok) return false;
-  writeFileSync(localPath, Buffer.from(await res.arrayBuffer()));
-  return true;
+  const staging = `${localPath}.download`;
+  try {
+    writeFileSync(staging, Buffer.from(await res.arrayBuffer()));
+    renameSync(staging, localPath);
+    return true;
+  } catch {
+    rmSync(staging, { force: true });
+    return false;
+  }
+}
+
+function restartPendingNote(installedVer: string): string {
+  return [
+    `Installed on disk: ${installedVer} — running: ${PLUGIN_VERSION}.`,
+    'Restart the session: the running server holds its bundle in memory and cannot swap it while serving this call.',
+  ].join(' ');
+}
+
+function parseSemver(v: string): number[] {
+  return v.replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
+}
+
+function semverGt(a: string, b: string): boolean {
+  const pa = parseSemver(a);
+  const pb = parseSemver(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const da = pa[i] || 0;
+    const db = pb[i] || 0;
+    if (da !== db) return da > db;
+  }
+  return false;
 }
 
 export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
@@ -47,20 +77,25 @@ export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
 
   server.tool(
     'update_plugin',
-    'Check for plugin updates and install them. After updating, the user must restart the session for changes to take effect.',
+    'Check for plugin updates and download them. Reports the version installed on disk separately from the version this process is actually running, because a running MCP server cannot swap its own bundle — the download only takes effect after a session restart.',
     {},
     async () => {
-      const localVer = getLocalVersion();
+      const installedVer = getInstalledVersion();
       try {
         const res = await fetch(`${REPO_RAW}/package.json`);
         if (!res.ok) {
-          return { content: [{ type: 'text', text: `Cannot reach update server. Current version: ${localVer}` }] };
+          return { content: [{ type: 'text', text: `Cannot reach update server. ${restartPendingNote(installedVer)}` }] };
         }
         const remote = await res.json() as { version?: string };
         const remoteVer = remote.version || '0.0.0';
 
-        if (remoteVer === localVer) {
-          return { content: [{ type: 'text', text: `Already up to date: ${localVer}` }] };
+        if (!semverGt(remoteVer, installedVer)) {
+          const text = remoteVer === installedVer
+            ? (PLUGIN_VERSION === installedVer
+                ? `Already up to date and active: ${PLUGIN_VERSION}.`
+                : `Already downloaded, not yet active. ${restartPendingNote(installedVer)}`)
+            : `Nothing to install: this copy is ${installedVer}, newer than ${remoteVer} on the update server. Local files left untouched.`;
+          return { content: [{ type: 'text', text }] };
         }
 
         const root = getPluginRoot();
@@ -81,15 +116,14 @@ export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
           content: [{
             type: 'text',
             text: [
-              `Updated ${localVer} → ${remoteVer}`,
+              `Downloaded ${installedVer} → ${remoteVer}`,
+              `Still running: ${PLUGIN_VERSION}. The new bundle activates on the next session start, not now.`,
               ...results,
-              '',
-              'Restart the session for changes to take effect.',
             ].join('\n'),
           }],
         };
       } catch (err: any) {
-        return { content: [{ type: 'text', text: `Update check failed: ${err.message}. Current version: ${localVer}` }] };
+        return { content: [{ type: 'text', text: `Update check failed: ${err.message}. ${restartPendingNote(installedVer)}` }] };
       }
     },
   );
