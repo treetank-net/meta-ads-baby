@@ -42,7 +42,9 @@ tools/
   instructions.ts         — serverInstructions(cfg): wspólne koncepty (safe word, jednostki, paging) raz, per profil
   compact-listing.ts      — tools/list bez kluczy tylko-walidacyjnych ($schema, additionalProperties, pattern, ...)
   read.ts                 — orchestrator: registerReadTools()
-  read-helpers.ts         — schemas, query builders, pure functions
+  read-helpers.ts         — token guard, get_insights query/plan builder + insightsDocument() (pure, testowalne)
+  table.ts                — TSV kontraktu: shapeRows/layoutFor/tableDocument, shapeSchemas (fields/order_by/limit/min_*/summary/page)
+  graph-rows.ts           — Graph row → krótkie kolumny: kwoty z minor units (offset waluty), akcje insights, domyślne/opt-in kolumny
   read-accounts.ts        — list_ad_accounts, get_campaigns, get_ad_sets, get_ads, get_insights, get_ad_creatives, get_audiences
   read-history.ts         — get_mutation_history, get_mutation_stats
   write.ts                — orchestrator: registerWriteTools()
@@ -71,6 +73,7 @@ tools/
 **Nowy read tool:**
 1. Handler → `read-accounts.ts` (dane z Meta API) lub `read-history.ts` (lokalne dane)
 2. Query buildery / helpery → `read-helpers.ts`
+3. Lista wierszy → normalizer w `graph-rows.ts` (krótkie nazwy, kwoty w walucie konta, `*_COLUMNS` + `*_DEFAULT`) i `tableDocument()` z `listShapeSchemas`/`shapeSchemas`. Bez legendy, bez JSON-in-cell, URL-e tylko opt-in przez `fields`. Kontrakt: `../marketing-context-mcp/docs/response-format-contract.md`.
 
 **Nowa funkcja client (Meta Graph API):**
 1. Dobierz plik wg domeny: `client/campaigns.ts`, `client/adsets.ts`, `client/ads.ts`, `client/creatives.ts`, `client/insights.ts`, `client/audiences.ts`
@@ -139,7 +142,7 @@ No default/built-in credentials. User must create their own Meta App at develope
 - Base URL: `https://graph.facebook.com/v25.0/`
 - Auth: `Authorization: Bearer {access_token}` header
 - Rate limiting: Read=1pt, Write=3pt, dev tier max 60pt/300s, standard tier 9000pt/300s
-- Budgets in cents of account currency (daily_budget=1000 = 10.00 PLN)
+- Budgets in cents of account currency (daily_budget=1000 = 10.00 PLN); currencies with offset 1 (JPY, KRW, HUF, CLP, COP, CRC, ISK, IDR, PYG, TWD, VND) are whole units. Insights `spend`/`cpc`/`cpm` are already major units, `ctr` is already a percent
 - **No test mode** — all mutations are live, making safety layer critical
 - Ad account ID format: `act_123456789` (numeric with prefix)
 

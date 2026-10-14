@@ -1,5 +1,5 @@
 import type { MetaAdsConfig } from '../config.js';
-import { get, getAll, post } from './core.js';
+import { get, getAll, post, type Fetched } from './core.js';
 
 export interface Ad {
   id: string;
@@ -19,7 +19,7 @@ const AD_FIELDS = [
   'effective_status', 'creative', 'created_time', 'updated_time',
 ].join(',');
 
-export async function getAds(cfg: MetaAdsConfig, adAccountId: string, adSetId?: string): Promise<Ad[]> {
+export async function getAds(cfg: MetaAdsConfig, adAccountId: string, adSetId?: string): Promise<Fetched<Ad>> {
   const params: Record<string, unknown> = { fields: AD_FIELDS, limit: '200' };
   if (adSetId) {
     params['filtering'] = [{ field: 'adset_id', operator: 'EQUAL', value: adSetId }];

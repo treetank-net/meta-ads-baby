@@ -13,7 +13,8 @@ export function serverInstructions(cfg: MetaAdsConfig): string {
       'New campaigns, ad sets and ads start PAUSED. If confirm is blocked because safety hooks are missing (e.g. in Codex), call get_safety_setup.',
     ]),
     'ad_account_id takes act_<id> or bare digits, from list_ad_accounts.',
-    'List tools return tab-separated tables, paginated by response size: the response says which page of how many, and page: N asks for the next slice.',
+    'List tools return TSV: money in the account currency (never cents), *_pct are percents, "# k=v" header lines hold columns constant across rows, and totals cover every matching row even when limit cuts the list.',
+    'Ask for less instead of paging: fields, order_by (-spend = descending), limit, min_cost (spend) / min_impressions / min_clicks, summary: true for totals only. page: N gets the next slice.',
     'The meta-ads-manual skill documents each tool in detail.',
   ].join(' ');
 }

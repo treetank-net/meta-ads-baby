@@ -16,7 +16,9 @@ import {
   MAX_SPEND_CAP_CENTS,
 } from '../src/tools/write-schemas.js';
 import { amountFieldLimitError, formatBudget } from '../src/tools/write-helpers.js';
-import { toTsv, tsvDocument, flattenRow, trimPrecision, paginate, pageNote, DEFAULT_PAGE_CHARS } from '../src/tools/format.js';
+import { tableDocument, tableError, layoutFor, significant, count, DEFAULT_TABLE_PAGE_CHARS } from '../src/tools/table.js';
+import { minorToMajor, campaignRow, accountRow, adSetRow, creativeRow, audienceRow, CAMPAIGN_COLUMNS, CAMPAIGN_DEFAULT, AD_SET_DEFAULT, CREATIVE_COLUMNS, CREATIVE_DEFAULT } from '../src/tools/graph-rows.js';
+import { buildInsightQuery, insightsDocument, MISSING_TOKEN, type InsightArgs } from '../src/tools/read-helpers.js';
 import { PLUGIN_VERSION } from '../src/constants.js';
 import { readFileSync } from 'fs';
 
@@ -67,128 +69,266 @@ function resultText(result: any): string {
   return String(result?.content?.[0]?.text ?? '');
 }
 
-function testFlatten() {
-  console.log('\n--- flattenRow ---');
-
-  const actionRow = {
-    impressions: '1000',
+const GRAPH_INSIGHTS_CAMPAIGN = [
+  {
+    campaign_id: '120210000000001', campaign_name: 'PL | Sales | Prospecting', objective: 'OUTCOME_SALES',
+    spend: '1234.567', impressions: '120345', reach: '80211', frequency: '1.500374', clicks: '2410',
+    ctr: '2.002576', cpc: '0.512269', cpm: '10.258569', account_currency: 'PLN',
     actions: [
-      { action_type: 'link_click', value: '210' },
-      { action_type: 'offsite_conversion.fb_pixel_purchase', value: '6' },
+      { action_type: 'link_click', value: '1980' },
+      { action_type: 'landing_page_view', value: '1500' },
+      { action_type: 'omni_add_to_cart', value: '210' },
+      { action_type: 'add_to_cart', value: '210' },
+      { action_type: 'offsite_conversion.fb_pixel_add_to_cart', value: '205' },
+      { action_type: 'omni_purchase', value: '31' },
+      { action_type: 'purchase', value: '31' },
+      { action_type: 'offsite_conversion.fb_pixel_purchase', value: '30' },
+      { action_type: 'onsite_web_purchase', value: '31' },
+      { action_type: 'post_engagement', value: '4100' },
+      { action_type: 'page_engagement', value: '4120' },
+      { action_type: 'video_view', value: '3000' },
     ],
-    purchase_roas: [{ action_type: 'omni_purchase', value: '3.4' }],
-  };
-  const flat = flattenRow(actionRow);
-  assert('action-keyed array becomes one column per action_type', flat['actions.link_click'] === '210' && flat['actions.offsite_conversion.fb_pixel_purchase'] === '6');
-  assert('purchase_roas is action-keyed too', flat['purchase_roas.omni_purchase'] === '3.4');
-  assert('no raw JSON left for action arrays', !('actions' in flat));
+    action_values: [
+      { action_type: 'omni_purchase', value: '6170.5' },
+      { action_type: 'offsite_conversion.fb_pixel_purchase', value: '6000' },
+    ],
+    date_start: '2026-09-14', date_stop: '2026-10-13',
+  },
+  {
+    campaign_id: '120210000000002', campaign_name: 'PL | Sales | Retargeting', objective: 'OUTCOME_SALES',
+    spend: '410.2', impressions: '30100', reach: '9100', frequency: '3.307692', clicks: '1020',
+    ctr: '3.388704', cpc: '0.402157', cpm: '13.627907', account_currency: 'PLN',
+    actions: [
+      { action_type: 'link_click', value: '900' },
+      { action_type: 'landing_page_view', value: '700' },
+      { action_type: 'omni_add_to_cart', value: '120' },
+      { action_type: 'omni_purchase', value: '22' },
+    ],
+    action_values: [{ action_type: 'omni_purchase', value: '4400' }],
+    date_start: '2026-09-14', date_stop: '2026-10-13',
+  },
+  {
+    campaign_id: '120210000000003', campaign_name: 'PL | Sales | Test', objective: 'OUTCOME_SALES',
+    spend: '3.1', impressions: '410', reach: '400', frequency: '1.025', clicks: '2',
+    ctr: '0.487805', cpc: '1.55', cpm: '7.560976', account_currency: 'PLN',
+    date_start: '2026-09-14', date_stop: '2026-10-13',
+  },
+];
 
-  const scalarArray = flattenRow({ platforms: ['facebook', 'instagram'] });
-  assert('scalar array joins with " ~ "', scalarArray['platforms'] === 'facebook ~ instagram');
-
-  const nested = flattenRow({ targeting_summary: { age_min: 18, countries: ['PL'] } });
-  assert('nested object flattens with dotted key', nested['targeting_summary.age_min'] === 18 && nested['targeting_summary.countries'] === 'PL');
-
-  const absent = flattenRow({ a: 1, b: undefined, c: null });
-  assert('undefined and null fields are dropped, not printed', !('b' in absent) && !('c' in absent));
-
-  const emptyArray = flattenRow({ special_ad_categories: [] });
-  assert('empty array yields no column', !('special_ad_categories' in emptyArray));
-
-  const opaque = flattenRow({ specs: [{ a: 1 }, { b: 2 }] });
-  assert('array of non-action objects falls back to JSON', typeof opaque['specs'] === 'string' && String(opaque['specs']).startsWith('['));
-
-  const nonAction = flattenRow({ items: [{ action_type: 'x', value: '1' }] });
-  assert('action_type shape outside a known metric field is not split', typeof nonAction['items'] === 'string');
+function insightsText(args: Record<string, unknown>, raw: any[] = GRAPH_INSIGHTS_CAMPAIGN): string {
+  const full = { object_id: 'act_123', level: 'campaign', ...args } as InsightArgs;
+  const query = buildInsightQuery(full);
+  if (typeof query === 'string') return `Error: ${query}`;
+  return insightsDocument(full, query, raw as any);
 }
 
-function testTrimPrecision() {
-  console.log('\n--- trimPrecision ---');
-
-  assert('long float string is trimmed to 6 significant digits', trimPrecision('1.4293877551020408') === 1.42939);
-  assert('numeric float is trimmed', trimPrecision(0.5735238095238095) === 0.573524);
-  assert('integer number is untouched', trimPrecision(14000) === 14000);
-  assert('integer-looking string is untouched', trimPrecision('14000') === '14000');
-  assert('short decimal string is untouched', trimPrecision('120.44') === '120.44');
-  assert('id-like long digit string is untouched', trimPrecision('120210400000137') === '120210400000137');
-  assert('non-numeric string is untouched', trimPrecision('OUTCOME_SALES') === 'OUTCOME_SALES');
+function tableLines(text: string): { header: string[]; columns: string[]; rows: string[][] } {
+  const lines = text.split('\n');
+  const header = lines.filter((l) => l.startsWith('#'));
+  const body = lines.filter((l) => !l.startsWith('#'));
+  return { header, columns: body[0]?.split('\t') ?? [], rows: body.slice(1).map((l) => l.split('\t')) };
 }
 
-function testTsv() {
-  console.log('\n--- TSV output ---');
+function testTableShaping() {
+  console.log('\n--- Table shaping ---');
+
+  assert('floats >= 1 keep 2 decimals', significant(12.34567) === 12.35);
+  assert('floats < 1 keep 3 significant digits', significant(0.0123456) === 0.0123);
+  assert('integers stay integers', significant(14000) === 14000);
+  assert('numeric strings are parsed, ids are not touched by count()', count('120345') === 120345);
 
   const rows = [
-    { id: '1', name: 'PL | TFC | SALES', status: 'ACTIVE' },
-    { id: '2', name: 'PL | TFC | TRAFFIC', status: 'PAUSED' },
+    { id: '1', name: 'a', type: 'X', note: undefined, spend: 10, clicks: 3 },
+    { id: '2', name: 'b', type: 'X', note: undefined, spend: 30, clicks: 1 },
+    { id: '3', name: 'c', type: 'X', note: undefined, spend: 20, clicks: 0 },
   ];
-  const tsv = toTsv(rows);
-  const lines = tsv.split('\n');
-  assert('header row lists columns once', lines[0] === 'id\tname\tstatus');
-  assert('one line per row plus header', lines.length === 3);
-  assert('pipe characters in names survive (pipe is not the separator)', lines[1].includes('PL | TFC | SALES'));
+  const layout = layoutFor(rows, ['id', 'name', 'type', 'note', 'spend']);
+  assert('columns empty in every row are dropped', !layout.columns.includes('note'));
+  assert('constant columns move to the header', layout.constants['type'] === 'X' && !layout.columns.includes('type'));
 
-  const ragged = toTsv([{ a: 1 }, { a: 2, b: 3 }]);
-  assert('columns are the union across rows', ragged.split('\n')[0] === 'a\tb');
-  assert('missing value renders as empty cell', ragged.split('\n')[1] === '1\t');
+  const doc = tableDocument({ title: 't', rows, shape: { order_by: '-spend', limit: 1 }, summable: (c) => c === 'spend' || c === 'clicks' });
+  const parsed = tableLines(doc);
+  assert('limit keeps the top row by order_by', parsed.rows.length === 1 && parsed.rows[0][0] === '2');
+  assert('truncation is declared in the header', doc.includes('showing top 1 of 3 by -spend'));
+  assert('totals cover all matching rows, not just the shown ones', doc.includes('# totals (all 3): spend=60 clicks=4'));
 
-  const dirty = toTsv([{ body: 'line one\nline two\twith tab' }]);
-  assert('tabs and newlines inside values are escaped to spaces', dirty.split('\n').length === 2 && !dirty.split('\n')[1].includes('\t'));
+  const filtered = tableDocument({ title: 't', rows, shape: { min_cost: 15 }, summable: (c) => c === 'spend' });
+  assert('min_cost filters on spend and says so', filtered.includes('min_cost=15') && filtered.includes('2 of 3 match') && filtered.includes('spend=50'));
 
-  assert('empty row set yields empty string', toTsv([]) === '');
+  const summary = tableDocument({ title: 't', rows, shape: { summary: true }, summable: (c) => c === 'spend' });
+  assert('summary returns header and totals only', !summary.split('\n').some((l) => !l.startsWith('#')) && summary.includes('spend=60'));
 
-  const doc = tsvDocument('campaigns', rows);
-  assert('document has a labelled section with a count', doc.includes('## campaigns (2)'));
-  assert('document carries the legend', doc.includes('tab-separated'));
-  assert('zero rows says so without a table', tsvDocument('campaigns', []).includes('## campaigns (0)'));
+  let error = '';
+  try { tableDocument({ title: 't', rows, shape: { fields: ['nope'] } }); } catch (err) { error = tableError(err) ?? ''; }
+  assert('unknown field is an actionable error listing the columns', error.startsWith('Error: fields: unknown column "nope"') && error.includes('spend'));
 
-  const withNote = tsvDocument('campaigns', rows, ['NOTE HERE']);
-  assert('header note is placed before the table', withNote.indexOf('NOTE HERE') < withNote.indexOf('## campaigns'));
+  const picked = tableLines(tableDocument({ title: 't', rows, shape: { fields: ['name', 'spend'] } }));
+  assert('fields picks and orders columns', picked.columns.join(',') === 'name,spend');
 
-  const jsonSize = JSON.stringify(rows, null, 2).length;
-  assert('TSV is smaller than pretty JSON for the same rows', tsv.length < jsonSize, `tsv=${tsv.length} json=${jsonSize}`);
+  const known = tableDocument({ title: 't', rows, known: ['id', 'name', 'spend', 'budget'], shape: { fields: ['name', 'budget'] } });
+  assert('a known column that is empty everywhere is not an error', !known.startsWith('Error') && known.includes('a'));
+
+  const many = Array.from({ length: 3000 }, (_, i) => ({ id: String(i), term: `row number ${i} with some text` }));
+  const page1 = tableDocument({ title: 'big', rows: many });
+  assert('default page is about 12k chars', page1.length <= DEFAULT_TABLE_PAGE_CHARS + 400, `${page1.length}`);
+  const note = page1.split('\n').pop() ?? '';
+  assert('page note is one short line', note.startsWith('# page 1/') && note.length <= 120 && note.includes('page: 2'));
+  const page2 = tableDocument({ title: 'big', rows: many, shape: { page: 2 } });
+  assert('page 2 continues where page 1 stopped', page2.includes('# page 2/') && !page2.includes('row number 0 '));
+  assert('no legend or footer on a single page', !tableDocument({ title: 't', rows }).toLowerCase().includes('tab-separated'));
 }
 
-function testPagination() {
-  console.log('\n--- Pagination by response size ---');
+function testCurrencyUnits() {
+  console.log('\n--- Currency units ---');
 
-  const small = Array.from({ length: 5 }, (_, i) => ({ id: String(i), name: 'x' }));
-  const onePage = paginate(small, 1);
-  assert('small result is a single page', onePage.pages === 1 && onePage.rows.length === 5);
-  assert('single page emits no page note', pageNote(onePage, 'rows') === undefined);
+  assert('minor units divide by 100 for PLN', minorToMajor('1000', 'PLN') === 10);
+  assert('offset-1 currencies are whole units', minorToMajor('1000', 'JPY') === 1000 && minorToMajor('5000', 'HUF') === 5000);
+  assert('unknown currency defaults to offset 100', minorToMajor(250, undefined) === 2.5);
 
-  const wide = Array.from({ length: 400 }, (_, i) => ({ id: String(i), blob: 'x'.repeat(500) }));
-  const p1 = paginate(wide, 1);
-  const rendered = toTsv(p1.rows);
-  assert('oversized result is split into several pages', p1.pages > 2, `pages=${p1.pages}`);
-  assert('page respects the character budget', rendered.length <= DEFAULT_PAGE_CHARS, `chars=${rendered.length}`);
-  assert('first page starts at row 1', p1.from === 1);
-  assert('total is the full row count, not the page size', p1.total === 400);
+  const campaign = campaignRow({
+    id: '120210000000001', name: 'PL | Sales', objective: 'OUTCOME_SALES', status: 'ACTIVE', configured_status: 'ACTIVE', effective_status: 'ACTIVE',
+    daily_budget: '15000', budget_remaining: '9050', spend_cap: '0', buying_type: 'AUCTION', special_ad_categories: [],
+    bid_strategy: 'LOWEST_COST_WITHOUT_CAP', start_time: '2026-01-05T10:00:00+0100', created_time: '2026-01-05T09:58:12+0100',
+  } as any, 'PLN');
+  assert('campaign budget converted from cents', campaign['daily_budget'] === 150 && campaign['budget_remaining'] === 90.5);
+  assert('spend_cap 0 means no cap and renders empty', campaign['spend_cap'] === undefined);
+  assert('empty special_ad_categories renders empty', campaign['special_ad_categories'] === undefined);
 
-  const p2 = paginate(wide, 2);
-  assert('second page continues where the first ended', p2.from === p1.to + 1);
-  assert('pages do not overlap', p2.rows[0] !== p1.rows[0]);
+  const doc = tableDocument({ title: 'campaigns', currency: 'PLN', rows: [campaign, { ...campaign, campaign_id: '2', campaign: 'Other', status: 'PAUSED' }], known: CAMPAIGN_COLUMNS, defaultFields: CAMPAIGN_DEFAULT });
+  const parsed = tableLines(doc);
+  assert('campaign table keeps effective status as status', parsed.columns.includes('status'));
+  assert('near-duplicate status columns are dropped by default', !doc.includes('configured_status') && !doc.includes('status_setting'));
+  assert('created/updated times are not in the default set', !doc.includes('created_time'));
+  assert('currency is in the header once', doc.split('\n')[0].includes('currency=PLN') && !parsed.rows.some((r) => r.join('\t').includes('PLN')));
+  const asked = tableDocument({ title: 'campaigns', rows: [campaign], known: CAMPAIGN_COLUMNS, defaultFields: CAMPAIGN_DEFAULT, shape: { fields: ['campaign', 'configured_status'] } });
+  assert('fields can bring back configured_status', asked.includes('configured_status') && asked.includes('ACTIVE'));
 
-  const last = paginate(wide, p1.pages);
-  assert('last page ends at the last row', last.to === 400);
-  assert('page beyond the end clamps to the last page', paginate(wide, 999).page === p1.pages);
-  assert('page zero or negative clamps to the first page', paginate(wide, 0).page === 1 && paginate(wide, -3).page === 1);
+  const account = accountRow({ id: 'act_123', account_id: '123', name: 'Shop', account_status: 1, currency: 'JPY', timezone_name: 'Asia/Tokyo', amount_spent: '1234567', balance: '0', spend_cap: '0' } as any);
+  assert('account amounts respect the account currency offset', account['amount_spent'] === 1234567 && account['status'] === 'ACTIVE');
+  assert('unknown account status is named, not a bare number', accountRow({ account_status: 42 } as any)['status'] === 'UNKNOWN(42)');
 
-  const allRows = new Set<string>();
-  for (let i = 1; i <= p1.pages; i++) for (const r of paginate(wide, i).rows) allRows.add(r.id);
-  assert('every row appears on exactly one page (no data lost)', allRows.size === 400);
+  const adSet = adSetRow({
+    id: '1', name: 'Women 25-45', campaign_id: '9', status: 'ACTIVE', configured_status: 'ACTIVE', effective_status: 'ACTIVE',
+    daily_budget: '5000', bid_amount: '250', optimization_goal: 'OFFSITE_CONVERSIONS', billing_event: 'IMPRESSIONS',
+    promoted_object: { pixel_id: '555', custom_event_type: 'PURCHASE' },
+    targeting: { age_min: 25, age_max: 45, genders: [2], geo_locations: { countries: ['PL', 'CZ'] }, publisher_platforms: ['facebook', 'instagram'], flexible_spec: [{ interests: [{ id: '6003', name: 'Yoga' }, { id: '6004', name: 'Running' }] }], custom_audiences: [{ id: '1' }, { id: '2' }] },
+  } as any, 'PLN');
+  assert('ad set budget and bid converted', adSet['daily_budget'] === 50 && adSet['bid_amount'] === 2.5);
+  assert('targeting is summarized, not JSON', adSet['age'] === '25-45' && adSet['genders'] === 'female' && adSet['countries'] === 'PL ~ CZ' && adSet['interests'] === 'Yoga ~ Running' && adSet['custom_audiences'] === 2);
+  assert('promoted object becomes the conversion event', adSet['conversion_event'] === 'PURCHASE');
+  assert('raw targeting JSON exists only as an opt-in column', !AD_SET_DEFAULT.includes('targeting') && String(adSet['targeting']).startsWith('{'));
+}
 
-  const note = pageNote(p1, 'ads');
-  assert('page note states position and total', !!note && note.includes(`of ${p1.pages}`) && note.includes('of 400'));
-  assert('page note tells the caller how to get the next slice', !!note && note.includes('page: 2'));
-  assert('last page note says it is the last', String(pageNote(last, 'ads')).includes('last page'));
+function testInsightsShaping() {
+  console.log('\n--- get_insights shaping ---');
 
-  const denser = paginate(wide, 1, 8_000);
-  assert('a smaller character budget yields more pages', denser.pages > p1.pages);
+  const text = insightsText({});
+  const parsed = tableLines(text);
+  assert('header names object, level, window and currency', parsed.header[0].startsWith('# insights · act_123 · level=campaign · last_30d 2026-09-14..2026-10-13 · currency=PLN'));
+  assert('no dotted action columns', !parsed.columns.some((c) => c.includes('.')));
+  assert('action arrays become a small fixed set of columns', parsed.columns.length <= 20, parsed.columns.join(','));
+  assert('omni_purchase is named purchase', parsed.columns.includes('purchase') && parsed.columns.includes('purchase_value') && parsed.columns.includes('roas'));
+  assert('non-selected action types do not appear', !text.includes('post_engagement') && !text.includes('video_view') && !text.includes('pixel_purchase'));
+  assert('ranking fields are not requested by default', !text.includes('ranking'));
+  assert('date_start/date_stop are not columns', !parsed.columns.includes('date_start') && !parsed.columns.includes('date_stop'));
+  assert('constant objective is hoisted to a header line', parsed.header.some((h) => h === '# objective=OUTCOME_SALES'));
+  const row = Object.fromEntries(parsed.columns.map((c, i) => [c, parsed.rows[0][i]]));
+  assert('rows sorted by spend descending', row['campaign_id'] === '120210000000001');
+  assert('ctr is already a percent and is not multiplied again', row['ctr_pct'] === '2' && parsed.columns.includes('ctr_pct'));
+  assert('money rounded to 2 decimals', row['spend'] === '1234.57' && row['cpc'] === '0.51' && row['cpm'] === '10.26');
+  assert('frequency rounded to 2 decimals', row['frequency'] === '1.5');
+  assert('purchase cpa and roas are computed', row['purchase_cpa'] === '39.82' && row['roas'] === '5');
+  assert('link clicks come from the link_click action', row['link_click'] === '1980');
+  assert('totals sum spend and recompute ratios', /# totals: spend=1647.87 impressions=150855 clicks=3432 .*ctr_pct=2.28/.test(text), parsed.header.join(' | '));
+  assert('reach is not summed (it is unique people)', !/totals:.*reach=/.test(text));
+  assert('totals carry roas over all rows', /totals:.* roas=6.41/.test(text));
 
-  const narrow = Array.from({ length: 400 }, (_, i) => ({ id: String(i) }));
-  assert('narrow rows fit in fewer pages than wide ones at the same budget', paginate(narrow, 1).pages < p1.pages);
+  const old = JSON.stringify(GRAPH_INSIGHTS_CAMPAIGN).length;
+  assert('shaped output is far smaller than the raw Graph rows', text.length < old / 2, `shaped=${text.length} raw=${old}`);
 
-  assert('empty result set is one empty page', paginate([], 1).pages === 1 && paginate([], 1).total === 0);
+  const filtered = insightsText({ min_cost: 100 });
+  assert('min_cost drops low-spend rows and totals follow', filtered.includes('2 of 3 match') && !filtered.includes('Test'));
+
+  const top = insightsText({ limit: 1 });
+  assert('limit declares truncation, totals still cover all rows', top.includes('showing top 1 of 3 by -spend') && top.includes('totals (all 3)'));
+
+  const custom = insightsText({ action_types: ['offsite_conversion.fb_pixel_purchase'] });
+  assert('custom action_types get short names', custom.includes('pixel_purchase') && !/\tpurchase\t/.test(custom));
+
+  const everything = insightsText({ action_types: ['all'] });
+  assert('action_types ["all"] expands to every type present', everything.includes('post_engagement') && everything.includes('video_view'));
+
+  const picked = tableLines(insightsText({ fields: ['campaign', 'spend', 'purchase', 'lead_cpa'] }));
+  assert('fields picks insight columns including derived ones', picked.columns.join(',') === 'campaign,spend,purchase');
+
+  const rankingQuery = buildInsightQuery({ object_id: '123', level: 'ad', fields: ['ad', 'quality_ranking'] } as InsightArgs);
+  assert('ranking fields are requested only when asked for', typeof rankingQuery !== 'string' && rankingQuery.apiFields.includes('quality_ranking'));
+  const defaultQuery = buildInsightQuery({ object_id: 'act_1' } as InsightArgs);
+  assert('default query requests no ranking and no cost_per_action_type', typeof defaultQuery !== 'string' && !defaultQuery.apiFields.some((f) => f.includes('ranking') || f === 'cost_per_action_type'));
+  assert('default date preset is last_30d', typeof defaultQuery !== 'string' && defaultQuery.datePreset === 'last_30d');
+  const ranged = buildInsightQuery({ object_id: 'act_1', date_preset: 'last_7d', time_range: { since: '2026-09-01', until: '2026-09-30' } } as InsightArgs);
+  assert('time_range overrides date_preset', typeof ranged !== 'string' && ranged.datePreset === undefined && ranged.timeRange?.since === '2026-09-01');
+  assert('reversed time_range is rejected', typeof buildInsightQuery({ object_id: 'act_1', time_range: { since: '2026-10-01', until: '2026-09-01' } } as InsightArgs) === 'string');
+  const passQuery = buildInsightQuery({ object_id: 'act_1', fields: ['spend', 'inline_post_engagement'] } as InsightArgs);
+  assert('unknown fields pass through to Graph', typeof passQuery !== 'string' && passQuery.apiFields.includes('inline_post_engagement'));
+
+  const daily = [1, 2, 3].map((d) => ({ spend: String(10 * d), impressions: String(1000 * d), clicks: String(10 * d), ctr: '1', account_currency: 'EUR', date_start: `2026-10-0${d}`, date_stop: `2026-10-0${d}` }));
+  const series = insightsText({ level: undefined, time_increment: '1' }, daily);
+  const seriesParsed = tableLines(series);
+  assert('time series rows carry a date column, oldest first', seriesParsed.columns[0] === 'date' && seriesParsed.rows[0][0] === '2026-10-01');
+  assert('time series is not cut by the default limit', seriesParsed.rows.length === 3 && !series.includes('showing top'));
+  assert('constant ctr is hoisted in a time series', series.includes('# ctr_pct=1'));
+
+  const one = insightsText({ level: undefined }, [GRAPH_INSIGHTS_CAMPAIGN[0]]);
+  assert('account-level single row has no id columns', !tableLines(one).columns.includes('campaign_id'));
+
+  const capped = Object.assign([...GRAPH_INSIGHTS_CAMPAIGN], { capped: 3 });
+  assert('a paging cap is declared, never silent', insightsText({}, capped).includes('capped at 3 rows'));
+}
+
+function testCreativeAndAudienceRows() {
+  console.log('\n--- Creatives and audiences ---');
+
+  const carousel = creativeRow({
+    id: '238', name: 'Autumn carousel', status: 'ACTIVE', object_type: 'SHARE',
+    thumbnail_url: 'https://scontent.xx.fbcdn.net/v/t45.1600-4/123_n.png?stp=dst-png_p64x64&_nc_cat=1&ccb=1-7&_nc_sid=c2d1&oh=00_AYB&oe=670A',
+    image_url: 'https://scontent.xx.fbcdn.net/v/t45.1600-4/456_n.jpg?_nc_cat=1&oh=00_AYC',
+    object_story_spec: {
+      page_id: '1010', link_data: {
+        link: 'https://shop.example.com/?utm_source=facebook', message: 'New in: autumn collection',
+        call_to_action: { type: 'SHOP_NOW' },
+        child_attachments: [
+          { image_hash: 'a1', link: 'https://shop.example.com/a', name: 'Coat' },
+          { image_hash: 'b2', link: 'https://shop.example.com/b', name: 'Boots' },
+          { image_hash: 'c3', link: 'https://shop.example.com/c', name: 'Scarf' },
+        ],
+      },
+    },
+  } as any);
+  const doc = tableDocument({ title: 'ad_creatives', rows: [carousel, creativeRow({ id: '239', name: 'Plain', status: 'ACTIVE', body: 'Hi', image_hash: 'zz' } as any)], known: CREATIVE_COLUMNS, defaultFields: CREATIVE_DEFAULT });
+  assert('carousel spec is summarized as format and card count', carousel['format'] === 'carousel' && carousel['cards'] === 3 && carousel['cta'] === 'SHOP_NOW');
+  assert('no thumbnail or image URLs by default', !doc.includes('fbcdn'));
+  assert('no JSON in cells by default', !doc.includes('{'));
+  assert('copy and media ids are kept', doc.includes('New in: autumn collection') && doc.includes('zz'));
+  const withUrls = tableDocument({ title: 'ad_creatives', rows: [carousel], known: CREATIVE_COLUMNS, defaultFields: CREATIVE_DEFAULT, shape: { fields: ['creative_id', 'thumbnail_url', 'story_spec'] } });
+  assert('URLs and the raw spec come back when asked via fields', withUrls.includes('fbcdn') && withUrls.includes('"child_attachments"'));
+
+  const audience = audienceRow({ id: '2384', name: 'Buyers 180d', subtype: 'WEBSITE', approximate_count_lower_bound: 12000, approximate_count_upper_bound: 14100, delivery_status: { code: 200, description: 'This audience is ready for use.' }, time_created: 1727700000 } as any);
+  assert('epoch seconds become ISO timestamps', audience['created_time'] === '2024-09-30T12:40:00Z');
+  assert('size bounds are numeric columns', audience['size_min'] === 12000 && audience['size_max'] === 14100);
+  assert('delivery status object is summarized', audience['delivery'] === 'This audience is ready for use.');
+}
+
+async function testReadAuthChecks() {
+  console.log('\n--- Read tools require a token ---');
+
+  const server = new McpServer({ name: 'smoke', version: '0.0.0' });
+  registerReadTools(server, { ...TEST_CFG, accessToken: '' });
+  const tools = (server as any)._registeredTools as Record<string, any>;
+  for (const name of ['list_ad_accounts', 'get_campaigns', 'get_ad_sets', 'get_ads', 'get_insights', 'get_ad_creatives', 'get_audiences']) {
+    const result = await tools[name].handler({ ad_account_id: '123', object_id: 'act_123' }, {});
+    assert(`${name} refuses without a token`, resultText(result) === MISSING_TOKEN, resultText(result).slice(0, 80));
+  }
 }
 
 function testAmountLimits() {
@@ -322,7 +462,7 @@ function testProfiles() {
   assert('full profile adds no notice', profileNotice('full') === '');
 }
 
-const LISTING_BUDGET_CHARS: Record<ToolProfile, number> = { read: 6_000, manage: 15_000, full: 26_000 };
+const LISTING_BUDGET_CHARS: Record<ToolProfile, number> = { read: 6_500, manage: 13_500, full: 25_000 };
 const INSTRUCTIONS_BUDGET = 2_500;
 const TOOL_DESCRIPTION_BUDGET = 200;
 const PARAM_DESCRIPTION_BUDGET = 100;
@@ -385,10 +525,11 @@ async function main() {
   guardConfigDir();
   console.log(`Config dir under test: ${getConfigDir()}`);
 
-  testFlatten();
-  testTrimPrecision();
-  testTsv();
-  testPagination();
+  testTableShaping();
+  testCurrencyUnits();
+  testInsightsShaping();
+  testCreativeAndAudienceRows();
+  await testReadAuthChecks();
   testAmountLimits();
   await testCapSweep();
   testToolContract();

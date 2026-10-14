@@ -1,5 +1,10 @@
 import type { MetaAdsConfig } from '../config.js';
-import { get, getAll } from './core.js';
+import { getAll, type Fetched } from './core.js';
+
+export interface ActionStat {
+  action_type: string;
+  value: string;
+}
 
 export interface InsightRow {
   impressions?: string;
@@ -11,10 +16,10 @@ export interface InsightRow {
   cpc?: string;
   cpm?: string;
   cpp?: string;
-  actions?: Array<{ action_type: string; value: string }>;
-  action_values?: Array<{ action_type: string; value: string }>;
-  cost_per_action_type?: Array<{ action_type: string; value: string }>;
-  purchase_roas?: Array<{ action_type: string; value: string }>;
+  actions?: ActionStat[];
+  action_values?: ActionStat[];
+  cost_per_action_type?: ActionStat[];
+  purchase_roas?: ActionStat[];
   quality_ranking?: string;
   engagement_rate_ranking?: string;
   conversion_rate_ranking?: string;
@@ -57,18 +62,19 @@ export interface GetInsightsParams {
   datePreset?: DatePreset;
   timeRange?: { since: string; until: string };
   level?: InsightLevel;
-  fields?: string;
+  fields?: string[];
   timeIncrement?: string;
   limit?: number;
+  maxPages?: number;
 }
 
 export async function getInsights(
   cfg: MetaAdsConfig,
   objectId: string,
   params?: GetInsightsParams,
-): Promise<InsightRow[]> {
+): Promise<Fetched<InsightRow>> {
   const reqParams: Record<string, unknown> = {
-    fields: params?.fields || DEFAULT_INSIGHT_FIELDS,
+    fields: params?.fields?.length ? params.fields.join(',') : DEFAULT_INSIGHT_FIELDS,
     limit: String(params?.limit || 100),
   };
 
@@ -77,13 +83,13 @@ export async function getInsights(
   if (params?.level) reqParams['level'] = params.level;
   if (params?.timeIncrement) reqParams['time_increment'] = params.timeIncrement;
 
-  return getAll<InsightRow>(cfg, `/${objectId}/insights`, reqParams);
+  return getAll<InsightRow>(cfg, `/${objectId}/insights`, reqParams, params?.maxPages);
 }
 
 export async function getAccountInsights(
   cfg: MetaAdsConfig,
   adAccountId: string,
   params?: GetInsightsParams,
-): Promise<InsightRow[]> {
+): Promise<Fetched<InsightRow>> {
   return getInsights(cfg, `act_${adAccountId}`, params);
 }

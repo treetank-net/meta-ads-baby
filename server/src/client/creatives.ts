@@ -1,5 +1,5 @@
 import type { MetaAdsConfig } from '../config.js';
-import { get, getAll, post } from './core.js';
+import { get, getAll, post, type Fetched } from './core.js';
 
 export interface CallToAction {
   type: string;
@@ -62,7 +62,7 @@ const CREATIVE_FIELDS = [
   'object_type', 'url_tags', 'account_id',
 ].join(',');
 
-export async function getAdCreatives(cfg: MetaAdsConfig, adAccountId: string): Promise<AdCreative[]> {
+export async function getAdCreatives(cfg: MetaAdsConfig, adAccountId: string): Promise<Fetched<AdCreative>> {
   return getAll<AdCreative>(cfg, `/act_${adAccountId}/adcreatives`, { fields: CREATIVE_FIELDS, limit: '100' });
 }
 

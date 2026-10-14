@@ -85,8 +85,10 @@ export function del(cfg: MetaAdsConfig, path: string): Promise<{ success: boolea
   return request<{ success: boolean }>(cfg.accessToken, 'DELETE', path);
 }
 
-export async function getAll<T>(cfg: MetaAdsConfig, path: string, params?: Record<string, unknown>, maxPages = 20): Promise<T[]> {
-  const allData: T[] = [];
+export type Fetched<T> = T[] & { capped?: number };
+
+export async function getAll<T>(cfg: MetaAdsConfig, path: string, params?: Record<string, unknown>, maxPages = 20): Promise<Fetched<T>> {
+  const allData: Fetched<T> = [];
   let afterCursor: string | undefined;
   let page = 0;
 
@@ -99,6 +101,7 @@ export async function getAll<T>(cfg: MetaAdsConfig, path: string, params?: Recor
     afterCursor = res.paging.cursors?.after;
     if (!afterCursor) break;
     page++;
+    if (page >= maxPages) allData.capped = allData.length;
   }
 
   return allData;

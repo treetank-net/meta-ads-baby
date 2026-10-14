@@ -1,5 +1,5 @@
 import type { MetaAdsConfig } from '../config.js';
-import { get, getAll, post } from './core.js';
+import { get, getAll, post, type Fetched } from './core.js';
 
 export interface Campaign {
   id: string;
@@ -28,7 +28,7 @@ const CAMPAIGN_FIELDS = [
   'start_time', 'stop_time', 'created_time', 'updated_time',
 ].join(',');
 
-export async function getCampaigns(cfg: MetaAdsConfig, adAccountId: string, statusFilter?: string[]): Promise<Campaign[]> {
+export async function getCampaigns(cfg: MetaAdsConfig, adAccountId: string, statusFilter?: string[]): Promise<Fetched<Campaign>> {
   const params: Record<string, unknown> = { fields: CAMPAIGN_FIELDS, limit: '200' };
   if (statusFilter?.length) {
     params['filtering'] = [{ field: 'effective_status', operator: 'IN', value: statusFilter }];

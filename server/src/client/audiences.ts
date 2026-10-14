@@ -1,5 +1,5 @@
 import type { MetaAdsConfig } from '../config.js';
-import { get, getAll, post } from './core.js';
+import { get, getAll, post, type Fetched } from './core.js';
 
 export interface CustomAudience {
   id: string;
@@ -20,7 +20,7 @@ const AUDIENCE_FIELDS = [
   'delivery_status', 'operation_status', 'time_created', 'time_updated',
 ].join(',');
 
-export async function getCustomAudiences(cfg: MetaAdsConfig, adAccountId: string): Promise<CustomAudience[]> {
+export async function getCustomAudiences(cfg: MetaAdsConfig, adAccountId: string): Promise<Fetched<CustomAudience>> {
   return getAll<CustomAudience>(cfg, `/act_${adAccountId}/customaudiences`, { fields: AUDIENCE_FIELDS, limit: '100' });
 }
 

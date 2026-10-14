@@ -1,5 +1,5 @@
 import type { MetaAdsConfig } from '../config.js';
-import { get, getAll, type PaginatedResponse } from './core.js';
+import { get, getAll, type PaginatedResponse, type Fetched } from './core.js';
 
 export interface AdAccount {
   id: string;
@@ -37,10 +37,29 @@ export const ACCOUNT_STATUS_LABELS: Record<number, string> = {
   101: 'CLOSED',
 };
 
-export async function listAdAccounts(cfg: MetaAdsConfig): Promise<AdAccount[]> {
+export async function listAdAccounts(cfg: MetaAdsConfig): Promise<Fetched<AdAccount>> {
   return getAll<AdAccount>(cfg, '/me/adaccounts', { fields: AD_ACCOUNT_FIELDS, limit: '100' });
 }
 
 export async function getAdAccount(cfg: MetaAdsConfig, adAccountId: string): Promise<AdAccount> {
   return get<AdAccount>(cfg, `/act_${adAccountId}`, { fields: AD_ACCOUNT_FIELDS });
+}
+
+const currencyCache = new Map<string, string>();
+
+export function rememberAccountCurrency(adAccountId: string, currency: string): void {
+  currencyCache.set(adAccountId.replace(/^act_/, ''), currency);
+}
+
+export async function getAccountCurrency(cfg: MetaAdsConfig, adAccountId: string): Promise<string | undefined> {
+  const id = adAccountId.replace(/^act_/, '');
+  const cached = currencyCache.get(id);
+  if (cached) return cached;
+  try {
+    const account = await get<{ currency?: string }>(cfg, `/act_${id}`, { fields: 'currency' });
+    if (account.currency) currencyCache.set(id, account.currency);
+    return account.currency;
+  } catch {
+    return undefined;
+  }
 }
