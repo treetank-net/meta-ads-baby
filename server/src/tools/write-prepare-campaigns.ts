@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
-import { getAdAccount } from '../client.js';
+import { getAdAccount, getAccountCurrency } from '../client.js';
 import { validateAdAccount, validationResult, prepareResponse, budgetWarning, formatBudget, amountFieldLimitError } from './write-helpers.js';
 import {
   adAccountIdSchema,
@@ -66,11 +66,12 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       const amountError = amountFieldLimitError({ daily_budget, lifetime_budget });
       if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const currency = await getAccountCurrency(cfg, normalizedAccountId);
       const budgetDesc = daily_budget
-        ? `daily budget to ${formatBudget(daily_budget)}`
-        : `lifetime budget to ${formatBudget(lifetime_budget!)}`;
+        ? `daily budget to ${formatBudget(daily_budget, currency)}`
+        : `lifetime budget to ${formatBudget(lifetime_budget!, currency)}`;
       const preview = `Change ${object_type} ${object_id} ${budgetDesc} on account ${normalizedAccountId}`;
-      const warning = daily_budget ? budgetWarning(daily_budget) : '';
+      const warning = daily_budget ? budgetWarning(daily_budget, currency) : '';
       const mutation = createToken('budget_change', {
         ad_account_id: normalizedAccountId,
         object_id,
@@ -103,10 +104,11 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       const amountError = amountFieldLimitError({ daily_budget, lifetime_budget });
       if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const currency = await getAccountCurrency(cfg, normalizedAccountId);
       const budgetLine = daily_budget
-        ? `Daily budget: ${formatBudget(daily_budget)}`
+        ? `Daily budget: ${formatBudget(daily_budget, currency)}`
         : lifetime_budget
-          ? `Lifetime budget: ${formatBudget(lifetime_budget)}`
+          ? `Lifetime budget: ${formatBudget(lifetime_budget, currency)}`
           : 'Budget: not set (will use ad set budgets)';
       const lines = [
         `Create ${status} campaign "${name}" with objective ${objective} on account ${normalizedAccountId}`,
@@ -114,7 +116,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         `Special ad categories: ${special_ad_categories.join(', ')}`,
       ];
       if (bid_strategy) lines.push(`Bid strategy: ${bid_strategy}`);
-      const warning = daily_budget ? budgetWarning(daily_budget) : '';
+      const warning = daily_budget ? budgetWarning(daily_budget, currency) : '';
       if (warning) lines.push(warning);
       const preview = lines.join('\n');
       const mutation = createToken('campaign_create', {
@@ -165,6 +167,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
         return validationResult('end_time is required when using lifetime_budget.');
       }
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const currency = await getAccountCurrency(cfg, normalizedAccountId);
 
       let resolvedDsaBeneficiary = dsa_beneficiary;
       let resolvedDsaPayor = dsa_payor;
@@ -177,8 +180,8 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       }
 
       const budgetLine = daily_budget
-        ? `Daily budget: ${formatBudget(daily_budget)}`
-        : `Lifetime budget: ${formatBudget(lifetime_budget!)}`;
+        ? `Daily budget: ${formatBudget(daily_budget, currency)}`
+        : `Lifetime budget: ${formatBudget(lifetime_budget!, currency)}`;
       const lines = [
         `Create ${status} ad set "${name}" in campaign ${campaign_id} on account ${normalizedAccountId}`,
         budgetLine,
@@ -188,11 +191,11 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       ];
       if (start_time) lines.push(`Start: ${start_time}`);
       if (end_time) lines.push(`End: ${end_time}`);
-      if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount)}`);
+      if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount, currency)}`);
       if (promoted_object) lines.push(`Promoted object: ${JSON.stringify(promoted_object)}`);
       if (resolvedDsaBeneficiary) lines.push(`DSA beneficiary: ${resolvedDsaBeneficiary}`);
       if (resolvedDsaPayor) lines.push(`DSA payor: ${resolvedDsaPayor}`);
-      const warning = daily_budget ? budgetWarning(daily_budget) : '';
+      const warning = daily_budget ? budgetWarning(daily_budget, currency) : '';
       if (warning) lines.push(warning);
       const preview = lines.join('\n');
       const mutation = createToken('ad_set_create', {
@@ -266,15 +269,16 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       const amountError = amountFieldLimitError({ daily_budget, lifetime_budget, bid_amount });
       if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const currency = await getAccountCurrency(cfg, normalizedAccountId);
       const lines = [`Update ad set ${ad_set_id} on account ${normalizedAccountId}`];
       if (targeting) lines.push(`Targeting: ${JSON.stringify(targeting)}`);
-      if (daily_budget) lines.push(`Daily budget: ${formatBudget(daily_budget)}`);
-      if (lifetime_budget) lines.push(`Lifetime budget: ${formatBudget(lifetime_budget)}`);
+      if (daily_budget) lines.push(`Daily budget: ${formatBudget(daily_budget, currency)}`);
+      if (lifetime_budget) lines.push(`Lifetime budget: ${formatBudget(lifetime_budget, currency)}`);
       if (optimization_goal) lines.push(`Optimization goal: ${optimization_goal}`);
-      if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount)}`);
+      if (bid_amount) lines.push(`Bid amount: ${formatBudget(bid_amount, currency)}`);
       if (end_time) lines.push(`End time: ${end_time}`);
       if (promoted_object) lines.push(`Promoted object: ${JSON.stringify(promoted_object)}`);
-      const warning = daily_budget ? budgetWarning(daily_budget) : '';
+      const warning = daily_budget ? budgetWarning(daily_budget, currency) : '';
       if (warning) lines.push(warning);
       const preview = lines.join('\n');
       const mutation = createToken('ad_set_update', {
@@ -349,13 +353,14 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
       const amountError = amountFieldLimitError({ daily_budget, spend_cap });
       if (amountError) return validationResult(amountError);
       const normalizedAccountId = normalizeAdAccountId(ad_account_id);
+      const currency = await getAccountCurrency(cfg, normalizedAccountId);
       const lines = [`Update campaign ${campaign_id} on account ${normalizedAccountId}`];
       if (name) lines.push(`Name: ${name}`);
-      if (spend_cap) lines.push(`Spend cap: ${formatBudget(spend_cap)}`);
+      if (spend_cap) lines.push(`Spend cap: ${formatBudget(spend_cap, currency)}`);
       if (bid_strategy) lines.push(`Bid strategy: ${bid_strategy}`);
-      if (daily_budget) lines.push(`Daily budget: ${formatBudget(daily_budget)}`);
+      if (daily_budget) lines.push(`Daily budget: ${formatBudget(daily_budget, currency)}`);
       if (status) lines.push(`Status: ${status}`);
-      const warning = daily_budget ? budgetWarning(daily_budget) : '';
+      const warning = daily_budget ? budgetWarning(daily_budget, currency) : '';
       if (warning) lines.push(warning);
       const preview = lines.join('\n');
       const mutation = createToken('campaign_update', {

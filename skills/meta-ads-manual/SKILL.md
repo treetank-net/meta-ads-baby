@@ -200,4 +200,16 @@ A daily budget above 50,000 (500.00) adds a warning line to the preview.
 
 `get_mutation_history` reads the local audit log
 (`~/.meta-ads-baby/mutation-history.jsonl`), newest first, 20 entries by
-default and 200 at most. `get_mutation_stats` summarizes it per action.
+default and 200 at most, as a table of time, action, result, preview, error
+and created ids. `include_params: true` returns one compact JSON line per entry
+with the full call params instead, e.g. to replicate a campaign.
+`get_mutation_stats` summarizes the log per action.
+
+## What prepare and confirm return
+
+A `prepare_*` returns the preview, one line with the token, safe word and
+expiry, and one instruction line. When other operations are pending it adds
+them as a table (token, action, safe word, age, first preview line) and says
+how many share the same safe word. `confirm_mutation` answers
+`OK: <first preview line> — done.` plus the compact Graph result (the new id);
+`confirm_all_mutations` gives one such line per operation after a summary.

@@ -5,7 +5,7 @@ import type { PendingMutation } from '../confirm.js';
 import { confirmPendingSafeWord, consumeConfirmState, consumeToken, getPendingToken, getTokenTtlSeconds, listPending } from '../confirm.js';
 import { recordFailure } from '../history.js';
 import { CODEX_HOOK_INSTALL_COMMAND } from './write-schemas.js';
-import { safetyHookNotice } from './write-helpers.js';
+import { pendingTable } from './write-helpers.js';
 import { executeMutation, formatMutationError } from './write-executor.js';
 
 function resolveParams<T>(value: T, resolvedIds: Map<string, string>): T {
@@ -46,28 +46,19 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
     'get_safety_setup',
     'Explain the mutation safety model and hook installation.',
     {},
-    async () => ({
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          safetyLevel: cfg.safetyLevel,
-          mutationTokenTtlSeconds: getTokenTtlSeconds(),
-          manualSafeWordConfirmation: {
-            enabled: process.env['META_ADS_ENABLE_MANUAL_CONFIRM'] === '1',
-            env: 'META_ADS_ENABLE_MANUAL_CONFIRM',
-            purpose: 'Test-only fallback for confirm_safe_word. Keep this set to 0/unset outside local testing so normal confirmation relies on user-message hooks.',
-          },
-          serverSideProtection: 'Every write requires a prepare_* token. Tokens are server-side, one-shot, and time-limited.',
-          clientHookGate: safetyHookNotice(cfg),
-          codex: {
-            expectedProblem: 'Codex may show "No plugin hooks" because current Codex runtime loads MCP from plugins but does not reliably activate plugin-local hooks.',
-            fix: 'Install the standalone hook package in addition to the plugin.',
-            installCommand: CODEX_HOOK_INSTALL_COMMAND,
-            afterInstall: 'Restart or refresh Codex, then verify hooks are visible/active before running confirm_mutation.',
-          },
-        }, null, 2),
-      }],
-    }),
+    async () => {
+      const manual = process.env['META_ADS_ENABLE_MANUAL_CONFIRM'] === '1';
+      const lines = [
+        `Safety level: ${cfg.safetyLevel}. Mutation tokens are server-side, one-shot, and expire after ${getTokenTtlSeconds()}s.`,
+        cfg.safetyLevel === 'off'
+          ? 'Client hook gate: disabled (safety level off); the prepare token is still required.'
+          : 'Client hook gate: required. A hook records the safe word on prepare_* and lets confirm_* through only after a user message containing it.',
+        'Claude Code activates the plugin hooks automatically. Codex may show "No plugin hooks": it loads the MCP server but not plugin-local hooks.',
+        `Codex fix: ${CODEX_HOOK_INSTALL_COMMAND}, then restart Codex and check the hooks are active before confirming.`,
+        `Manual confirmation (confirm_safe_word, test only): ${manual ? 'enabled' : 'disabled'} via META_ADS_ENABLE_MANUAL_CONFIRM.`,
+      ];
+      return { content: [{ type: 'text', text: lines.join('\n') }] };
+    },
   );
 
   server.tool(
@@ -185,7 +176,7 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
       }
 
       const summary = `Batch complete: ${succeeded} succeeded, ${failed} failed out of ${tokens.length} operations.`;
-      return { content: [{ type: 'text', text: `${summary}\n\n${results.join('\n\n')}` }] };
+      return { content: [{ type: 'text', text: `${summary}\n${results.join('\n')}` }] };
     },
   );
 
@@ -198,7 +189,7 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
       if (!items.length) {
         return { content: [{ type: 'text', text: 'No pending operations.' }] };
       }
-      return { content: [{ type: 'text', text: JSON.stringify(items, null, 2) }] };
+      return { content: [{ type: 'text', text: pendingTable(items) }] };
     },
   );
 }

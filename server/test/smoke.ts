@@ -15,7 +15,10 @@ import {
   MAX_BID_AMOUNT_CENTS,
   MAX_SPEND_CAP_CENTS,
 } from '../src/tools/write-schemas.js';
-import { amountFieldLimitError, formatBudget } from '../src/tools/write-helpers.js';
+import { amountFieldLimitError, formatBudget, prepareResponse } from '../src/tools/write-helpers.js';
+import { createToken, listPending, consumeToken } from '../src/confirm.js';
+import { recordSuccess, recordFailure } from '../src/history.js';
+import { rememberAccountCurrency } from '../src/client.js';
 import { tableDocument, tableError, layoutFor, significant, count, DEFAULT_TABLE_PAGE_CHARS } from '../src/tools/table.js';
 import { minorToMajor, campaignRow, accountRow, adSetRow, creativeRow, audienceRow, CAMPAIGN_COLUMNS, CAMPAIGN_DEFAULT, AD_SET_DEFAULT, CREATIVE_COLUMNS, CREATIVE_DEFAULT } from '../src/tools/graph-rows.js';
 import { buildInsightQuery, insightsDocument, MISSING_TOKEN, type InsightArgs } from '../src/tools/read-helpers.js';
@@ -464,6 +467,7 @@ function testProfiles() {
 
 const LISTING_BUDGET_CHARS: Record<ToolProfile, number> = { read: 6_500, manage: 13_500, full: 25_000 };
 const INSTRUCTIONS_BUDGET = 2_500;
+const PREPARE_OVERHEAD_BUDGET = 300;
 const TOOL_DESCRIPTION_BUDGET = 200;
 const PARAM_DESCRIPTION_BUDGET = 100;
 
@@ -521,6 +525,62 @@ async function testToolListingBudget() {
   assert('shared params carry no description (server instructions explain them)', boilerplate.length === 0, boilerplate.map(([p]) => p).join(', '));
 }
 
+async function testMutationOutputs() {
+  console.log('\n--- Mutation outputs ---');
+
+  assert('formatBudget uses the account currency', formatBudget(1500, 'EUR') === '15.00 EUR' && formatBudget(1500, 'JPY') === '1500 JPY');
+  assert('formatBudget without a currency never invents one', formatBudget(1500) === '1500 (minor units)');
+
+  discardAll();
+  const preview = 'Change campaign 1 status to PAUSED on account 1234567890';
+  const first = createToken('campaign_status', { ad_account_id: '1234567890', campaign_id: '1', status: 'PAUSED' }, preview, 'kiwi');
+  const text = resultText(prepareResponse(TEST_CFG, first, preview));
+  assert('prepare response is plain text, not JSON', !text.trim().startsWith('{') && text.startsWith(preview));
+  assert('prepare response carries token, safe word and expiry on one line', text.includes(`token: ${first.token} · safe word: "kiwi" · expires in`));
+  assert('prepare response has one instruction line and no safety block', (text.match(/confirm_mutation/g) ?? []).length === 1 && !text.toLowerCase().includes('codex') && !text.includes('clientHookGate'));
+  assert(`prepare overhead stays within ${PREPARE_OVERHEAD_BUDGET} chars`, text.length - preview.length <= PREPARE_OVERHEAD_BUDGET, `${text.length - preview.length}`);
+
+  const second = createToken('ad_status', { ad_account_id: '1234567890', ad_id: '2', status: 'PAUSED' }, 'Change ad 2 status to PAUSED\nsecond line', 'kiwi');
+  const queued = resultText(prepareResponse(TEST_CFG, second, 'Change ad 2 status to PAUSED\nsecond line'));
+  assert('prepare lists the other pending operations as a table', queued.includes('Also pending (1, 1 under the same safe word') && queued.includes(`${first.token}\tcampaign_status\tkiwi\t`));
+  assert('the queue shows only preview headlines', !queued.split('Also pending')[1].includes('second line'));
+
+  const tools = registeredTools();
+  const pending = resultText(await tools['list_pending_mutations'].handler({}, {}));
+  assert('list_pending_mutations is a TSV table', pending.startsWith('token\taction\tsafe_word\tage\tpreview') && pending.includes(second.token));
+  const setup = resultText(await tools['get_safety_setup'].handler({}, {}));
+  assert('get_safety_setup is plain text', !setup.trim().startsWith('{') && setup.includes('Safety level: standard'));
+
+  rememberAccountCurrency('1234567890', 'EUR');
+  const budget = resultText(await tools['prepare_budget_change'].handler({ ad_account_id: 'act_1234567890', object_id: '5', object_type: 'campaign', daily_budget: 60000, safe_word: 'plum' }, {}));
+  assert('budget preview is in the account currency', budget.startsWith('Change campaign 5 daily budget to 600.00 EUR') && !budget.includes('PLN'), budget.slice(0, 120));
+  assert('budget warning uses the account currency too', budget.includes('above the 500.00 EUR warning threshold'));
+  discardAll();
+}
+
+function discardAll() {
+  for (const item of listPending()) consumeToken(item.token);
+}
+
+async function testHistoryOutput() {
+  console.log('\n--- Mutation history output ---');
+
+  recordSuccess('campaign_create', { ad_account_id: '1234567890', name: 'Autumn', objective: 'OUTCOME_SALES', daily_budget: '5000' }, 'Create PAUSED campaign "Autumn"\nDaily budget: 50.00 PLN', { id: '120210000000009' });
+  recordFailure('ad_status', { ad_account_id: '1234567890', ad_id: '7', status: 'ACTIVE' }, 'Change ad 7 status to ACTIVE', 'Invalid parameter');
+  const tools = registeredTools();
+  const text = resultText(await tools['get_mutation_history'].handler({ limit: 2 }, {}));
+  assert('history is a table with newest first', text.startsWith('# mutation_history') && text.indexOf('ad_status') < text.indexOf('campaign_create'));
+  assert('history omits params by default', !text.includes('OUTCOME_SALES'));
+  assert('multi-line previews stay on one row', text.includes('Create PAUSED campaign "Autumn" / Daily budget: 50.00 PLN'));
+  assert('constant account id is hoisted', /^# .*account_id=1234567890/m.test(text));
+  const withParams = resultText(await tools['get_mutation_history'].handler({ limit: 2, include_params: true }, {}));
+  assert('include_params adds params as compact JSON lines', withParams.includes('"objective":"OUTCOME_SALES"') && !withParams.includes('\n  '));
+  const stats = resultText(await tools['get_mutation_stats'].handler({}, {}));
+  assert('stats are compact JSON', stats.startsWith('{"total":') && !stats.includes('\n'));
+  const record = JSON.parse(readFileSync(join(getConfigDir(), 'mutation-history.jsonl'), 'utf8').trim().split('\n').pop()!);
+  assert('history record keeps the contract fields', ['timestamp', 'action', 'adAccountId', 'preview', 'params', 'success', 'error'].every((k) => k in record));
+}
+
 async function main() {
   guardConfigDir();
   console.log(`Config dir under test: ${getConfigDir()}`);
@@ -530,6 +590,8 @@ async function main() {
   testInsightsShaping();
   testCreativeAndAudienceRows();
   await testReadAuthChecks();
+  await testMutationOutputs();
+  await testHistoryOutput();
   testAmountLimits();
   await testCapSweep();
   testToolContract();

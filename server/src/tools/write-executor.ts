@@ -28,7 +28,8 @@ export async function executeMutation(cfg: MetaAdsConfig, mutation: PendingMutat
 
   const ok = (result?: unknown): MutationResult => {
     recordSuccess(mutation.action, p, mutation.preview, result, batchId);
-    const text = result ? `OK: ${mutation.preview}\n${JSON.stringify(result, null, 2)}` : `OK: ${mutation.preview}`;
+    const headline = mutation.preview.split('\n')[0];
+    const text = result ? `OK: ${headline} — done.\n${JSON.stringify(result)}` : `OK: ${headline} — done.`;
     return { text, rawResult: result };
   };
 

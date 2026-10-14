@@ -87,7 +87,9 @@ tools/
 - Każdy nowy tool → wpis w `TOOL_PROFILE` (`profile.ts`); test sprawdza mapę w obie strony.
 
 **Konwencje:**
-- Każdy prepare tool tworzy token przez `createToken()` i zwraca przez `prepareResponse()`
+- Każdy prepare tool tworzy token przez `createToken()` i zwraca przez `prepareResponse()` — plain text: preview, linia `token · safe word · expires`, jedna linia instrukcji, kolejka pozostałych pending (TSV). Bez bloku safety (jest w `get_safety_setup` i instructions). Hooki czytają tylko `tool_input.safe_word`, nigdy odpowiedzi prepare.
+- Kwoty w preview: `formatBudget(minor, currency)` z `getAccountCurrency()` (cache per proces), nigdy hardcoded waluta.
+- confirm zwraca nagłówek preview + kompaktowy JSON wyniku API; historia bez `params` chyba że `include_params`; nigdzie `JSON.stringify(x, null, 2)` w odpowiedziach.
 - Budget walidacja przez stałe z `write-schemas.ts`
 - Ad Account ID normalizacja: `normalizeAdAccountId()` na początku każdego handlera (obsługa `act_` prefix)
 - Nie dodawaj komentarzy w kodzie — nazwy funkcji/zmiennych muszą być samodokumentujące
