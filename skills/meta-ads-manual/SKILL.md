@@ -61,8 +61,8 @@ campaign_id	campaign	spend	impressions	reach	frequency	clicks	ctr_pct	cpc	cpm	pu
   filters, including rows `limit` cut. Ratio totals (`ctr_pct`, `cpc`, `cpm`,
   `*_cpa`, `roas`) are recomputed from the summed metrics; `reach` and
   `frequency` are never summed because reach counts unique people.
-- **Caps.** Graph pages are followed up to 20 pages; if more remain, the header
-  says `capped at N rows` instead of silently dropping them.
+- **Caps.** Graph pages are followed up to 20 pages (200 with `output: "file"`);
+  if more remain, the header says `capped at N rows` instead of silently dropping them.
 
 ### Shaping output (prefer this to paging)
 
@@ -74,6 +74,7 @@ campaign_id	campaign	spend	impressions	reach	frequency	clicks	ctr_pct	cpc	cpm	pu
 | `min_cost` / `min_impressions` / `min_clicks` | `get_insights` only; `min_cost` filters on `spend` |
 | `summary: true` | Header and totals only |
 | `page` / `page_chars` | Next slice; default page is about 12k chars (2k-100k) |
+| `output: "file"` | All rows to a TSV file; see File output |
 
 Default and opt-in columns per tool:
 
@@ -85,6 +86,44 @@ Default and opt-in columns per tool:
 | `get_ads` | ad_id, ad, adset_id, campaign_id, status, creative_id | configured_status, created_time, updated_time |
 | `get_ad_creatives` | creative_id, creative, status, object_type, format (link, carousel, video), cards, page_id, headline, body, description, cta, image_hash, video_id | link, url_tags, image_url, thumbnail_url, story_spec (compact JSON) |
 | `get_audiences` | audience_id, audience, subtype, size_min, size_max, delivery, description, created_time, updated_time | operation |
+
+### File output (large tables)
+
+`output: "file"` writes **every** row that passes `min_*`, `order_by`, `limit` and
+`fields` to a TSV file and returns only the header, `# columns: ...`, totals and
+the first 5 rows. Paging does not apply, the default top 50 of `get_insights` is
+lifted (an explicit `limit` still applies), and Graph paging goes up to 200 pages.
+Use it when a table would take more than one page (hundreds of ads or ad sets,
+`level: "ad"` with `time_increment: 1`, many creatives), or when you will join,
+group or rank the data yourself (for example insights by ad joined with `get_ads`
+on `ad_id`). In hosts without a shell (Claude Desktop) stay inline.
+
+```
+# insights · act_123 · level=ad · last_30d 2026-09-14..2026-10-13 · currency=PLN · by -spend · rows=812 · file=/home/u/.meta-ads-baby/exports/insights-2026-10-14T11-31-55-249Z.tsv
+# columns: ad_id ad adset spend impressions clicks ctr_pct cpc cpm purchase purchase_value purchase_cpa roas
+# totals: spend=23456.54 ... roas=3.12
+<first 5 rows as TSV>
+```
+
+The file format is fixed so it parses without guessing:
+- UTF-8, path `~/.meta-ads-baby/exports/<table>-<timestamp>.tsv` (or under
+  `META_ADS_BABY_DATA`); take it from `file=` in the response.
+- Line 1 is the column names (same short names as inline), then one row per line.
+- Tab-delimited, no quoting, no `#` lines. Tabs and newlines inside values are replaced by spaces.
+- Empty cell means no value. Numbers use `.` and no thousands separator. Money is in the account
+  currency (from `currency=` in the response); `ctr_pct` is a percent.
+- Constant columns stay in the file (they are not hoisted); columns empty in every row are dropped.
+
+Parse it with standard tools, using the column names from `# columns:`:
+```bash
+F=/path/from/response.tsv
+column -t -s $'\t' "$F" | head                                    # look at a few rows
+awk -F'\t' 'NR==1{for(i=1;i<=NF;i++)c[$i]=i; next} $c["spend"]>100 && $c["purchase"]==0 {n++; s+=$c["spend"]} END{print n, s}' "$F"
+duckdb -c "SELECT adset, sum(spend) spend, sum(purchase_value)/sum(spend) roas FROM read_csv('$F', delim='\t', header=true) GROUP BY 1 ORDER BY spend DESC LIMIT 20"
+mlr --itsv --opprint sort -nr spend then head -n 20 then cut -f ad,spend,purchase,roas "$F"
+python3 -c "import csv,sys; r=list(csv.DictReader(open(sys.argv[1]), delimiter='\t', quoting=csv.QUOTE_NONE)); s=sum(float(x['spend'] or 0) for x in r); v=sum(float(x['purchase_value'] or 0) for x in r); print(len(r), s, v/s if s else None)" "$F"
+```
+Print only the aggregates you need; never `cat` the file or print it whole into context.
 
 ### get_insights
 

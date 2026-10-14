@@ -1,4 +1,7 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { z } from 'zod';
+import { getConfigDir } from '../config.js';
 
 export type Cell = string | number | boolean | null | undefined;
 export type Row = Record<string, Cell>;
@@ -64,6 +67,7 @@ export const shapeSchemas = {
   summary: z.boolean().optional().describe('Totals only'),
   page: z.number().int().positive().optional(),
   page_chars: z.number().int().min(MIN_TABLE_PAGE_CHARS).max(MAX_TABLE_PAGE_CHARS).optional(),
+  output: z.enum(['inline', 'file']).optional().describe('file: all rows to a TSV file; returns path, totals and 5 rows'),
 };
 
 export const listShapeSchemas = {
@@ -73,6 +77,7 @@ export const listShapeSchemas = {
   summary: shapeSchemas.summary,
   page: shapeSchemas.page,
   page_chars: shapeSchemas.page_chars,
+  output: shapeSchemas.output,
 };
 
 export interface Shape {
@@ -85,6 +90,7 @@ export interface Shape {
   summary?: boolean;
   page?: number;
   page_chars?: number;
+  output?: 'inline' | 'file';
 }
 
 export interface Shaped {
@@ -193,7 +199,8 @@ export function shapeRows(spec: TableSpec): Shaped {
   let totals = spec.summable ? sumColumns(rows, present, spec.summable) : {};
   if (spec.deriveTotals && Object.keys(totals).length) totals = { ...totals, ...spec.deriveTotals(totals) };
 
-  const limit = shape.limit ?? spec.defaultLimit;
+  // A default top-N would defeat output: "file"; only an explicit limit applies there.
+  const limit = shape.limit ?? (shape.output === 'file' ? undefined : spec.defaultLimit);
   if (limit !== undefined && rows.length > limit) {
     rows = rows.slice(0, limit);
     notes.push(`showing top ${limit} of ${matched}${order ? ` by ${order}` : ''}`);
@@ -271,12 +278,14 @@ export function tableDocument(spec: TableSpec): string {
   const filtered = shaped.matched !== shaped.total ? [`${shaped.matched} of ${shaped.total} match`] : [];
   const head = [spec.title, ...(spec.scope ?? []), ...(spec.currency ? [`currency=${spec.currency}`] : []), ...rowCount, ...filtered, ...shaped.notes];
   const lines = [`# ${head.join(' · ')}`];
-  if (Object.keys(layout.constants).length) lines.push(`# ${formatPairs(layout.constants)}`);
+  const file = shape.output === 'file' && !shape.summary;
+  if (!file && Object.keys(layout.constants).length) lines.push(`# ${formatPairs(layout.constants)}`);
   if (Object.keys(shaped.totals).length && (shaped.matched > 1 || shape.summary)) {
     lines.push(`# totals${shaped.matched !== shaped.rows.length ? ` (all ${shaped.matched})` : ''}: ${formatPairs(shaped.totals)}`);
   }
   for (const note of spec.extraNotes ?? []) lines.push(`# ${note}`);
   if (shape.summary) return lines.join('\n');
+  if (file) return fileDocument(spec.title, shaped, lines);
 
   const paged = pageRows(shaped.rows, layout.columns, shape.page ?? 1, shape.page_chars ?? DEFAULT_TABLE_PAGE_CHARS);
   const body = renderRows(paged.rows, layout.columns);
@@ -285,6 +294,28 @@ export function tableDocument(spec: TableSpec): string {
     const to = paged.from + paged.rows.length - 1;
     lines.push(`# page ${paged.page}/${paged.pages}, rows ${paged.from}-${to} of ${shaped.rows.length}${paged.page < paged.pages ? `; page: ${paged.page + 1} for more` : ''}`);
   }
+  return lines.join('\n');
+}
+
+export const FILE_PREVIEW_ROWS = 5;
+
+/**
+ * output: "file" — every shaped row (filters, order, limit and fields still apply,
+ * paging does not) goes to a plain TSV file: one header line of column names,
+ * then rows; no `#` lines, no hoisted columns, so any TSV reader parses it as is.
+ */
+function fileDocument(title: string, shaped: Shaped, head: string[]): string {
+  const columns = shaped.columns.filter((column) => shaped.rows.some((row) => row[column] !== undefined && row[column] !== null && row[column] !== ''));
+  const dir = join(getConfigDir(), 'exports');
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, `${title.replace(/[^a-z0-9_-]+/gi, '_')}-${new Date().toISOString().replace(/[:.]/g, '-')}.tsv`);
+  const body = renderRows(shaped.rows, columns);
+  writeFileSync(path, body ? `${body}\n` : `${columns.join('\t')}\n`, 'utf8');
+  const lines = [...head];
+  lines[0] = `${lines[0].replace(/ · rows=\d+/, '')} · rows=${shaped.rows.length} · file=${path}`;
+  lines.splice(1, 0, `# columns: ${columns.join(' ')}`);
+  const preview = renderRows(shaped.rows.slice(0, FILE_PREVIEW_ROWS), columns);
+  if (preview) lines.push(preview);
   return lines.join('\n');
 }
 

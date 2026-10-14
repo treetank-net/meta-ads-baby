@@ -20,8 +20,8 @@ const AUDIENCE_FIELDS = [
   'delivery_status', 'operation_status', 'time_created', 'time_updated',
 ].join(',');
 
-export async function getCustomAudiences(cfg: MetaAdsConfig, adAccountId: string): Promise<Fetched<CustomAudience>> {
-  return getAll<CustomAudience>(cfg, `/act_${adAccountId}/customaudiences`, { fields: AUDIENCE_FIELDS, limit: '100' });
+export async function getCustomAudiences(cfg: MetaAdsConfig, adAccountId: string, maxPages?: number): Promise<Fetched<CustomAudience>> {
+  return getAll<CustomAudience>(cfg, `/act_${adAccountId}/customaudiences`, { fields: AUDIENCE_FIELDS, limit: '100' }, maxPages);
 }
 
 export async function getCustomAudience(cfg: MetaAdsConfig, audienceId: string): Promise<CustomAudience> {

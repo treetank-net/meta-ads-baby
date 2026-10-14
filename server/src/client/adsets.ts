@@ -51,12 +51,12 @@ const AD_SET_FIELDS = [
   'promoted_object', 'created_time', 'updated_time', 'destination_type',
 ].join(',');
 
-export async function getAdSets(cfg: MetaAdsConfig, adAccountId: string, campaignId?: string): Promise<Fetched<AdSet>> {
+export async function getAdSets(cfg: MetaAdsConfig, adAccountId: string, campaignId?: string, maxPages?: number): Promise<Fetched<AdSet>> {
   const params: Record<string, unknown> = { fields: AD_SET_FIELDS, limit: '200' };
   if (campaignId) {
     params['filtering'] = [{ field: 'campaign_id', operator: 'EQUAL', value: campaignId }];
   }
-  return getAll<AdSet>(cfg, `/act_${adAccountId}/adsets`, params);
+  return getAll<AdSet>(cfg, `/act_${adAccountId}/adsets`, params, maxPages);
 }
 
 export async function getAdSet(cfg: MetaAdsConfig, adSetId: string): Promise<AdSet> {

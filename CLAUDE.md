@@ -43,7 +43,7 @@ tools/
   compact-listing.ts      — tools/list bez kluczy tylko-walidacyjnych ($schema, additionalProperties, pattern, ...)
   read.ts                 — orchestrator: registerReadTools()
   read-helpers.ts         — token guard, get_insights query/plan builder + insightsDocument() (pure, testowalne)
-  table.ts                — TSV kontraktu: shapeRows/layoutFor/tableDocument, shapeSchemas (fields/order_by/limit/min_*/summary/page)
+  table.ts                — TSV kontraktu: shapeRows/layoutFor/tableDocument, shapeSchemas (fields/order_by/limit/min_*/summary/page/output), fileDocument (output: "file" → <configDir>/exports/*.tsv)
   graph-rows.ts           — Graph row → krótkie kolumny: kwoty z minor units (offset waluty), akcje insights, domyślne/opt-in kolumny
   read-accounts.ts        — list_ad_accounts, get_campaigns, get_ad_sets, get_ads, get_insights, get_ad_creatives, get_audiences
   read-history.ts         — get_mutation_history, get_mutation_stats

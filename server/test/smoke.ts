@@ -19,11 +19,12 @@ import { amountFieldLimitError, formatBudget, prepareResponse } from '../src/too
 import { createToken, listPending, consumeToken } from '../src/confirm.js';
 import { recordSuccess, recordFailure } from '../src/history.js';
 import { rememberAccountCurrency } from '../src/client.js';
-import { tableDocument, tableError, layoutFor, significant, count, DEFAULT_TABLE_PAGE_CHARS } from '../src/tools/table.js';
+import { tableDocument, tableError, layoutFor, significant, count, DEFAULT_TABLE_PAGE_CHARS, FILE_PREVIEW_ROWS } from '../src/tools/table.js';
+import { DEFAULT_MAX_PAGES, FILE_MAX_PAGES } from '../src/client/core.js';
 import { minorToMajor, campaignRow, accountRow, adSetRow, creativeRow, audienceRow, CAMPAIGN_COLUMNS, CAMPAIGN_DEFAULT, AD_SET_DEFAULT, CREATIVE_COLUMNS, CREATIVE_DEFAULT } from '../src/tools/graph-rows.js';
 import { buildInsightQuery, insightsDocument, MISSING_TOKEN, type InsightArgs } from '../src/tools/read-helpers.js';
 import { PLUGIN_VERSION } from '../src/constants.js';
-import { readFileSync } from 'fs';
+import { readFileSync, mkdtempSync, rmSync } from 'fs';
 
 let passed = 0;
 let failed = 0;
@@ -465,7 +466,7 @@ function testProfiles() {
   assert('full profile adds no notice', profileNotice('full') === '');
 }
 
-const LISTING_BUDGET_CHARS: Record<ToolProfile, number> = { read: 6_500, manage: 13_500, full: 25_000 };
+const LISTING_BUDGET_CHARS: Record<ToolProfile, number> = { read: 6_700, manage: 13_500, full: 25_000 };
 const INSTRUCTIONS_BUDGET = 2_500;
 const PREPARE_OVERHEAD_BUDGET = 300;
 const TOOL_DESCRIPTION_BUDGET = 200;
@@ -581,6 +582,63 @@ async function testHistoryOutput() {
   assert('history record keeps the contract fields', ['timestamp', 'action', 'adAccountId', 'preview', 'params', 'success', 'error'].every((k) => k in record));
 }
 
+async function testFileOutput() {
+  console.log('\n--- output: "file" ---');
+
+  const previousData = process.env.META_ADS_BABY_DATA;
+  const dataDir = mkdtempSync(join(tmpdir(), 'mab-export-'));
+  process.env.META_ADS_BABY_DATA = dataDir;
+  const realFetch = globalThis.fetch;
+  try {
+    const many = Array.from({ length: 2000 }, (_, i) => ({ ad_id: String(i), ad: `ad number ${i} with some text`, type: 'X', note: undefined, spend: i % 7, clicks: i % 5 }));
+    const exported = tableDocument({ title: 'ads', currency: 'PLN', rows: many, defaultOrder: '-spend', defaultLimit: 50, summable: (c) => c === 'spend' || c === 'clicks', shape: { output: 'file', min_clicks: 1 } });
+    const fileMatch = exported.match(/file=(\S+\.tsv)/);
+    const matching = many.filter((row) => row.clicks >= 1).length;
+    assert('file mode names the written file under <data dir>/exports', Boolean(fileMatch) && fileMatch![1].startsWith(join(dataDir, 'exports', 'ads-')), exported.slice(0, 300));
+    assert('the file name has no : or . in the timestamp', Boolean(fileMatch) && /ads-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.tsv$/.test(fileMatch![1]));
+    assert('file mode lists the columns, constants included, empties dropped', exported.includes('# columns: ad_id ad type spend clicks'));
+    const head = exported.split('\n')[0];
+    assert('the header carries rows=N once, then file=', (head.match(/rows=/g) ?? []).length === 1 && head.includes(`rows=${matching} · file=`), head);
+    assert('file mode keeps the totals line', exported.includes('# totals: spend='));
+    const body = exported.split('\n').filter((line) => !line.startsWith('#'));
+    assert(`file mode returns a short response with ${FILE_PREVIEW_ROWS} preview rows`, exported.length < 1500 && body.length === FILE_PREVIEW_ROWS + 1, `chars=${exported.length}`);
+    const file = readFileSync(fileMatch![1], 'utf8').trimEnd().split('\n');
+    assert('the file holds one header line plus every matching row, unpaged and not cut by the default limit', file.length === matching + 1 && file[0] === 'ad_id\tad\ttype\tspend\tclicks', `lines=${file.length}`);
+    assert('the file has no comment lines', file.every((line) => !line.startsWith('#')));
+    assert('every file row has the header width', file.every((line) => line.split('\t').length === 5));
+
+    const limited = tableDocument({ title: 'ads', rows: many, defaultOrder: '-spend', shape: { output: 'file', limit: 30, fields: ['ad_id', 'spend'] } });
+    const limitedFile = readFileSync(limited.match(/file=(\S+\.tsv)/)![1], 'utf8').trimEnd().split('\n');
+    assert('an explicit limit and fields still apply to the file', limitedFile.length === 31 && limitedFile[0] === 'ad_id\tspend');
+
+    const insights = insightsText({ output: 'file' });
+    const insightsFile = readFileSync(insights.match(/file=(\S+\.tsv)/)![1], 'utf8').trimEnd().split('\n');
+    assert('insights file uses Meta column names', insightsFile[0].split('\t').includes('purchase') && insightsFile[0].split('\t').includes('roas') && insightsFile.length === 4);
+    assert('insights file keeps the constant objective as a column', insightsFile[0].split('\t').includes('objective') && !insights.includes('# objective='));
+
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      const data = Array.from({ length: 2 }, (_, i) => ({ id: `${calls}${i}`, name: `Ad ${calls}-${i}`, effective_status: 'ACTIVE' }));
+      return { status: 200, json: async () => ({ data, paging: { next: 'more', cursors: { after: `c${calls}` } } }) };
+    }) as any;
+    const tools = registeredTools();
+    const inline = resultText(await tools['get_ads'].handler({ ad_account_id: 'act_1234567890' }, {}));
+    assert(`inline reads stop at ${DEFAULT_MAX_PAGES} Graph pages and say so`, calls === DEFAULT_MAX_PAGES && inline.includes(`capped at ${DEFAULT_MAX_PAGES * 2} rows`), `calls=${calls}`);
+    calls = 0;
+    const fileAds = resultText(await tools['get_ads'].handler({ ad_account_id: 'act_1234567890', output: 'file' }, {}));
+    assert(`file mode raises the paging cap to ${FILE_MAX_PAGES} pages and still reports the cap`, calls === FILE_MAX_PAGES && fileAds.includes(`capped at ${FILE_MAX_PAGES * 2} rows`) && fileAds.includes(`rows=${FILE_MAX_PAGES * 2} · file=`), `calls=${calls}`);
+    const adsFile = readFileSync(fileAds.match(/file=(\S+\.tsv)/)![1], 'utf8').trimEnd().split('\n');
+    assert('get_ads file holds every fetched ad', adsFile.length === FILE_MAX_PAGES * 2 + 1);
+    const tableTools = ['list_ad_accounts', 'get_campaigns', 'get_ad_sets', 'get_ads', 'get_insights', 'get_ad_creatives', 'get_audiences'];
+    assert('every shaped-table tool accepts output', tableTools.every((name) => toolFieldNames(tools[name]).includes('output')));
+  } finally {
+    globalThis.fetch = realFetch;
+    if (previousData === undefined) delete process.env.META_ADS_BABY_DATA; else process.env.META_ADS_BABY_DATA = previousData;
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   guardConfigDir();
   console.log(`Config dir under test: ${getConfigDir()}`);
@@ -589,6 +647,7 @@ async function main() {
   testCurrencyUnits();
   testInsightsShaping();
   testCreativeAndAudienceRows();
+  await testFileOutput();
   await testReadAuthChecks();
   await testMutationOutputs();
   await testHistoryOutput();

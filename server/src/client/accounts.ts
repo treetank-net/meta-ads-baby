@@ -37,8 +37,8 @@ export const ACCOUNT_STATUS_LABELS: Record<number, string> = {
   101: 'CLOSED',
 };
 
-export async function listAdAccounts(cfg: MetaAdsConfig): Promise<Fetched<AdAccount>> {
-  return getAll<AdAccount>(cfg, '/me/adaccounts', { fields: AD_ACCOUNT_FIELDS, limit: '100' });
+export async function listAdAccounts(cfg: MetaAdsConfig, maxPages?: number): Promise<Fetched<AdAccount>> {
+  return getAll<AdAccount>(cfg, '/me/adaccounts', { fields: AD_ACCOUNT_FIELDS, limit: '100' }, maxPages);
 }
 
 export async function getAdAccount(cfg: MetaAdsConfig, adAccountId: string): Promise<AdAccount> {

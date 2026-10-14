@@ -4,6 +4,7 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId, requireAdAccountId } from '../validation.js';
 import { listAdAccounts, getAccountCurrency, getCampaigns, getAdSets, getAds, getInsights, getAdCreatives, getCustomAudiences } from '../client.js';
 import { formatError } from '../errors.js';
+import { DEFAULT_MAX_PAGES, FILE_MAX_PAGES } from '../client/core.js';
 import { tableDocument, tableError, shapeSchemas, listShapeSchemas, type Row, type Shape } from './table.js';
 import {
   accountRow, ACCOUNT_COLUMNS, ACCOUNT_DEFAULT,
@@ -22,6 +23,10 @@ function accountGuard(cfg: MetaAdsConfig, adAccountId: string) {
   if (missing) return missing;
   const validationError = requireAdAccountId(adAccountId);
   return validationError ? textResult(`Error: ${validationError}`) : null;
+}
+
+function maxPages(shape: Shape): number {
+  return shape.output === 'file' ? FILE_MAX_PAGES : DEFAULT_MAX_PAGES;
 }
 
 function failure(err: unknown) {
@@ -61,7 +66,7 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
       const missing = tokenError(cfg);
       if (missing) return missing;
       try {
-        const accounts = await listAdAccounts(cfg);
+        const accounts = await listAdAccounts(cfg, maxPages(shape));
         return listDocument({ title: 'ad_accounts', scope: [], rows: accounts.map(accountRow), known: ACCOUNT_COLUMNS, defaults: ACCOUNT_DEFAULT, shape, notes: cappedNote(accounts) });
       } catch (err) {
         return failure(err);
@@ -82,7 +87,7 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
       if (guard) return guard;
       try {
         const id = normalizeAdAccountId(ad_account_id);
-        const [campaigns, currency] = await Promise.all([getCampaigns(cfg, id, status_filter), getAccountCurrency(cfg, id)]);
+        const [campaigns, currency] = await Promise.all([getCampaigns(cfg, id, status_filter, maxPages(shape)), getAccountCurrency(cfg, id)]);
         const scope = [`act_${id}`, ...(status_filter?.length ? [`status in ${status_filter.join(',')}`] : [])];
         return listDocument({ title: 'campaigns', scope, currency, rows: campaigns.map((c) => campaignRow(c, currency)), known: CAMPAIGN_COLUMNS, defaults: CAMPAIGN_DEFAULT, shape, notes: cappedNote(campaigns) });
       } catch (err) {
@@ -104,7 +109,7 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
       if (guard) return guard;
       try {
         const id = normalizeAdAccountId(ad_account_id);
-        const [adSets, currency] = await Promise.all([getAdSets(cfg, id, campaign_id), getAccountCurrency(cfg, id)]);
+        const [adSets, currency] = await Promise.all([getAdSets(cfg, id, campaign_id, maxPages(shape)), getAccountCurrency(cfg, id)]);
         const scope = [`act_${id}`, ...(campaign_id ? [`campaign ${campaign_id}`] : [])];
         return listDocument({ title: 'ad_sets', scope, currency, rows: adSets.map((s) => adSetRow(s, currency)), known: AD_SET_COLUMNS, defaults: AD_SET_DEFAULT, shape, notes: cappedNote(adSets) });
       } catch (err) {
@@ -126,7 +131,7 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
       if (guard) return guard;
       try {
         const id = normalizeAdAccountId(ad_account_id);
-        const ads = await getAds(cfg, id, ad_set_id);
+        const ads = await getAds(cfg, id, ad_set_id, maxPages(shape));
         const scope = [`act_${id}`, ...(ad_set_id ? [`ad set ${ad_set_id}`] : [])];
         return listDocument({ title: 'ads', scope, rows: ads.map(adRow), known: AD_COLUMNS, defaults: AD_DEFAULT, shape, notes: cappedNote(ads) });
       } catch (err) {
@@ -160,6 +165,7 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
           timeIncrement: args.time_increment,
           fields: query.apiFields,
           limit: 500,
+          maxPages: maxPages(args),
         });
         return textResult(insightsDocument(args as InsightArgs, query, raw));
       } catch (err) {
@@ -180,7 +186,7 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
       if (guard) return guard;
       try {
         const id = normalizeAdAccountId(ad_account_id);
-        const creatives = await getAdCreatives(cfg, id);
+        const creatives = await getAdCreatives(cfg, id, maxPages(shape));
         return listDocument({ title: 'ad_creatives', scope: [`act_${id}`], rows: creatives.map(creativeRow), known: CREATIVE_COLUMNS, defaults: CREATIVE_DEFAULT, shape, notes: cappedNote(creatives) });
       } catch (err) {
         return failure(err);
@@ -200,7 +206,7 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
       if (guard) return guard;
       try {
         const id = normalizeAdAccountId(ad_account_id);
-        const audiences = await getCustomAudiences(cfg, id);
+        const audiences = await getCustomAudiences(cfg, id, maxPages(shape));
         return listDocument({ title: 'audiences', scope: [`act_${id}`], rows: audiences.map(audienceRow), known: AUDIENCE_COLUMNS, defaults: AUDIENCE_DEFAULT, shape, notes: cappedNote(audiences) });
       } catch (err) {
         return failure(err);

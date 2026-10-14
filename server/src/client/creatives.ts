@@ -62,8 +62,8 @@ const CREATIVE_FIELDS = [
   'object_type', 'url_tags', 'account_id',
 ].join(',');
 
-export async function getAdCreatives(cfg: MetaAdsConfig, adAccountId: string): Promise<Fetched<AdCreative>> {
-  return getAll<AdCreative>(cfg, `/act_${adAccountId}/adcreatives`, { fields: CREATIVE_FIELDS, limit: '100' });
+export async function getAdCreatives(cfg: MetaAdsConfig, adAccountId: string, maxPages?: number): Promise<Fetched<AdCreative>> {
+  return getAll<AdCreative>(cfg, `/act_${adAccountId}/adcreatives`, { fields: CREATIVE_FIELDS, limit: '100' }, maxPages);
 }
 
 export async function getAdCreative(cfg: MetaAdsConfig, creativeId: string): Promise<AdCreative> {

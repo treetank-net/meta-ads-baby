@@ -87,7 +87,11 @@ export function del(cfg: MetaAdsConfig, path: string): Promise<{ success: boolea
 
 export type Fetched<T> = T[] & { capped?: number };
 
-export async function getAll<T>(cfg: MetaAdsConfig, path: string, params?: Record<string, unknown>, maxPages = 20): Promise<Fetched<T>> {
+/** Graph paging cap for inline reads, and the larger cap used by output: "file". */
+export const DEFAULT_MAX_PAGES = 20;
+export const FILE_MAX_PAGES = 200;
+
+export async function getAll<T>(cfg: MetaAdsConfig, path: string, params?: Record<string, unknown>, maxPages = DEFAULT_MAX_PAGES): Promise<Fetched<T>> {
   const allData: Fetched<T> = [];
   let afterCursor: string | undefined;
   let page = 0;
