@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.15.0
+
+### Changed — token diet (see marketing-context-mcp `docs/response-format-contract.md`)
+- **Default profile is now `read`.** Mutation tools register only with an explicit `manage`/`full` profile; an unknown value falls back to `read`.
+- **One-line tool descriptions**, parameter descriptions ≤100 chars, compact `tools/list` schemas. Details moved to the manual skill.
+- **Server-shaped tables.** List tools return TSV with short column names, real currency amounts (no micros/cents), `*_pct` ratios, decoded enums, constant columns hoisted to a header, and totals over all matching rows.
+- **Shaping parameters** `fields`, `order_by`, `limit`, `min_cost`/`min_impressions`/`min_clicks`, `summary`, `page`/`page_chars` (default page ≈12k chars). Truncation is always declared in the header.
+- **Prepare/confirm responses are plain text**; mutation history returns params only with `include_params: true`.
+- `get_insights` returns per-action count, value and CPA for `omni_purchase`, `lead`, `omni_add_to_cart`, `landing_page_view`, `link_click` plus computed `roas`; `action_types: ["all"]` lists every type.
+- Graph paging cap is declared (`capped at N rows`) instead of silently dropping rows.
+- New `META_ADS_BABY_PROFILE` env and skill `meta-ads-manual`.
+
+### Fixed
+- Budget previews used a hard-coded PLN; they now show the account currency.
+
 ## 0.14.3
 
 ### Fixed
