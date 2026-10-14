@@ -44,7 +44,7 @@ function extractResolvedId(action: string, rawResult: unknown): string | undefin
 export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'get_safety_setup',
-    'Explain the current mutation safety model and how to install Codex hooks if plugin-local hooks are not active.',
+    'Explain the mutation safety model and hook installation.',
     {},
     async () => ({
       content: [{
@@ -72,10 +72,10 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
 
   server.tool(
     'confirm_safe_word',
-    'Test-only fallback for confirming a safe word when META_ADS_ENABLE_MANUAL_CONFIRM=1. Normal use should rely on user-message hooks.',
+    'Test-only: confirm a safe word when META_ADS_ENABLE_MANUAL_CONFIRM=1.',
     {
-      token: z.string().describe('Confirmation token from prepare_* response'),
-      safe_word: z.string().min(1).describe('Exact safe word shown in prepare_* response'),
+      token: z.string(),
+      safe_word: z.string().min(1),
     },
     async ({ token, safe_word }) => {
       const result = confirmPendingSafeWord(token, safe_word);
@@ -88,9 +88,9 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
 
   server.tool(
     'confirm_mutation',
-    'Execute a previously prepared mutation. Requires a valid, non-expired token from a prepare_* call. The user MUST have explicitly confirmed the action.',
+    'Execute a prepared mutation after the user replied with its safe word.',
     {
-      token: z.string().describe('Confirmation token from prepare_* response'),
+      token: z.string(),
     },
     async ({ token }) => {
       const pendingMutation = getPendingToken(token);
@@ -127,9 +127,9 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
 
   server.tool(
     'confirm_all_mutations',
-    'Execute ALL pending mutations in one batch. Use the same safe_word across multiple prepare_* calls, show combined preview, get one user confirmation, then call this. Requires user confirmation via safe word before calling.',
+    'Execute several prepared mutations that share one confirmed safe word, in order.',
     {
-      tokens: z.array(z.string()).min(1).max(50).describe('Array of confirmation tokens from prepare_* responses'),
+      tokens: z.array(z.string()).min(1).max(50).describe('In run order'),
     },
     async ({ tokens }) => {
       const validated: PendingMutation[] = [];
@@ -191,7 +191,7 @@ export function registerConfirmTools(server: McpServer, cfg: MetaAdsConfig): voi
 
   server.tool(
     'list_pending_mutations',
-    'List all pending (unconfirmed) mutations with their previews and tokens',
+    'List pending (unconfirmed) mutations.',
     {},
     async () => {
       const items = listPending();

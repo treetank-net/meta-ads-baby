@@ -9,13 +9,13 @@ import { adAccountIdSchema, safeWordSchema, tempIdSchema, carouselCreativeSchema
 export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'prepare_lookalike_audience',
-    'Prepare creation of a Meta lookalike audience from an existing custom audience. Returns a preview and confirmation token. The user MUST confirm before the audience is created.',
+    'Create a lookalike audience from a custom audience.',
     {
       ad_account_id: adAccountIdSchema,
-      name: z.string().min(1).describe('Lookalike audience name'),
-      origin_audience_id: z.string().describe('Source custom audience ID to base the lookalike on'),
-      country: z.string().length(2).describe('Two-letter country code for the lookalike audience (e.g. US, PL, DE)'),
-      ratio: z.number().min(0.01).max(0.20).describe('Lookalike ratio (0.01 = top 1%, 0.20 = top 20%)'),
+      name: z.string().min(1),
+      origin_audience_id: z.string(),
+      country: z.string().length(2).describe('ISO country code'),
+      ratio: z.number().min(0.01).max(0.20).describe('0.01 = top 1% most similar'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -43,7 +43,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
 
   server.tool(
     'prepare_carousel_creative',
-    'Prepare creation of a Meta carousel ad creative with 2-10 image cards. Each card has its own image, link, and headline. Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
+    'Create a carousel creative with 2-10 image cards.',
     carouselCreativeSchema.shape,
     async ({ ad_account_id, name, page_id, message, link, child_attachments, call_to_action_type, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
@@ -83,7 +83,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
 
   server.tool(
     'prepare_video_creative',
-    'Prepare creation of a Meta video ad creative. Requires a previously uploaded video ID. Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
+    'Create a video ad creative from an uploaded video.',
     videoCreativeSchema.shape,
     async ({ ad_account_id, name, page_id, video_id, message, title, image_hash, call_to_action_type, call_to_action_link, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
@@ -121,7 +121,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
 
   server.tool(
     'prepare_video_upload',
-    'Prepare upload of a video to a Meta ad account from a URL or local file. Returns a preview and confirmation token. The user MUST confirm before the upload.',
+    'Upload an ad video from a URL or local file; the result carries its video id.',
     videoUploadSchema.shape,
     async ({ ad_account_id, file_url, file_path, title, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
@@ -147,7 +147,7 @@ export function registerAssetPrepareTools(server: McpServer, cfg: MetaAdsConfig)
 
   server.tool(
     'prepare_lead_creative',
-    'Prepare creation of a Meta lead generation ad creative with a lead form. Uses object_story_spec with link_data and lead_gen_form_id. Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
+    'Create a lead ad creative: image, text and an instant form.',
     leadCreativeSchema.shape,
     async ({ ad_account_id, name, page_id, message, link, image_hash, headline, description, lead_gen_form_id, call_to_action_type, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);

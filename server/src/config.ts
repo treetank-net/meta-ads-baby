@@ -1,5 +1,6 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+import { normalizeProfile, type ToolProfile } from './tools/profile.js';
 
 export interface MetaAdsConfig {
   appId: string;
@@ -8,6 +9,7 @@ export interface MetaAdsConfig {
   safetyLevel: 'strict' | 'standard' | 'off';
   mutationTokenTtlSeconds: string;
   confirmStateTtlSeconds: string;
+  toolProfile: ToolProfile;
 }
 
 interface SavedConfig {
@@ -17,6 +19,7 @@ interface SavedConfig {
   safetyLevel?: 'strict' | 'standard' | 'off';
   mutationTokenTtlSeconds?: string;
   confirmStateTtlSeconds?: string;
+  toolProfile?: string;
   savedAt?: string;
 }
 
@@ -77,5 +80,6 @@ export async function configFromEnv(): Promise<MetaAdsConfig> {
     safetyLevel: safetyLevel as MetaAdsConfig['safetyLevel'],
     mutationTokenTtlSeconds,
     confirmStateTtlSeconds,
+    toolProfile: normalizeProfile(env('META_ADS_BABY_PROFILE') || saved.toolProfile),
   };
 }

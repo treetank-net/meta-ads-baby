@@ -16,7 +16,7 @@ Siostrzany projekt: `../google-ads-baby/` — identyczna architektura, plugin do
 
 #### Source layout (`server/src/`)
 ```
-index.ts                  — entrypoint: tworzy McpServer, rejestruje toole, startuje stdio
+index.ts                  — entrypoint: tworzy McpServer (z instructions), gate profilu, rejestruje toole, compact listing, stdio
 config.ts                 — MetaAdsConfig, configFromEnv(), getConfigDir()
 auth.ts                   — Facebook Login OAuth2 flow, landing page, token exchange
 confirm.ts                — token store (in-memory Map), safe word / confirm state (pliki)
@@ -38,6 +38,9 @@ client/
 
 tools/
   auth.ts                 — setup_meta_auth, update_plugin
+  profile.ts              — META_ADS_BABY_PROFILE: TOOL_PROFILE map, withProfile() gate, profileNotice()
+  instructions.ts         — serverInstructions(cfg): wspólne koncepty (safe word, jednostki, paging) raz, per profil
+  compact-listing.ts      — tools/list bez kluczy tylko-walidacyjnych ($schema, additionalProperties, pattern, ...)
   read.ts                 — orchestrator: registerReadTools()
   read-helpers.ts         — schemas, query builders, pure functions
   read-accounts.ts        — list_ad_accounts, get_campaigns, get_ad_sets, get_ads, get_insights, get_ad_creatives, get_audiences
@@ -73,6 +76,12 @@ tools/
 1. Dobierz plik wg domeny: `client/campaigns.ts`, `client/adsets.ts`, `client/ads.ts`, `client/creatives.ts`, `client/insights.ts`, `client/audiences.ts`
 2. Eksportuj funkcję — barrel `client/index.ts` + `client.ts` propaguje automatycznie
 3. Sygnatura: `(cfg: MetaAdsConfig, adAccountId: string, ...params) => Promise<unknown>`
+
+**Manifest (tools/list) — budżety pilnowane przez smoke test:**
+- Opis toola: jedno zdanie, ≤200 znaków (cel ~100). Szczegóły, progi i flow → `skills/meta-ads-manual/SKILL.md`.
+- Opis parametru tylko gdy nazwa+schemat nie wystarczą, ≤100 znaków. Bez opisu: `ad_account_id`, `safe_word`, `temp_id`, `page`, id, nazwy.
+- Koncepty wspólne (safe word, jednostki kwot, paging/TSV) — raz w `instructions.ts`.
+- Każdy nowy tool → wpis w `TOOL_PROFILE` (`profile.ts`); test sprawdza mapę w obie strony.
 
 **Konwencje:**
 - Każdy prepare tool tworzy token przez `createToken()` i zwraca przez `prepareResponse()`
@@ -168,6 +177,7 @@ Env vars (set in plugin.json, sourced from user's environment) OR saved in `conf
 - `META_ADS_APP_ID` / `META_ADS_APP_SECRET` — Facebook App credentials (**required**, no defaults)
 - `META_ADS_ACCESS_TOKEN` — long-lived user access token
 - `META_ADS_SAFETY_LEVEL` — `standard` (default), `strict`, or `off`
+- `META_ADS_BABY_PROFILE` — `read` (default, 11 tools, zero mutations), `manage` (26: kernel + edits of existing campaigns/ad sets/ads), `full` (38: + creation, creatives, uploads, clone, lookalike). Unknown value → `read`. Manifest ~3.6k / 10k / 21.5k chars (was 50k for everything).
 - `META_ADS_MUTATION_TOKEN_TTL_SECONDS` — optional server-side mutation token TTL override
 - `META_ADS_CONFIRM_STATE_TTL_SECONDS` — optional Claude hook confirmation-state TTL override
 

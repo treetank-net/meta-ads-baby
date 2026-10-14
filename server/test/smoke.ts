@@ -1,6 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerWriteTools } from '../src/tools/write.js';
 import { registerReadTools } from '../src/tools/read.js';
+import { registerAuthTools } from '../src/tools/auth.js';
+import { compactToolListing, compactSchema } from '../src/tools/compact-listing.js';
+import { TOOL_PROFILE, normalizeProfile, isToolAllowed, withProfile, profileNotice, type ToolProfile } from '../src/tools/profile.js';
+import { serverInstructions } from '../src/tools/instructions.js';
 import { getConfigDir } from '../src/config.js';
 import { homedir, tmpdir } from 'os';
 import { join } from 'path';
@@ -45,6 +49,7 @@ const TEST_CFG = {
   safetyLevel: 'standard' as const,
   mutationTokenTtlSeconds: '',
   confirmStateTtlSeconds: '',
+  toolProfile: 'full' as ToolProfile,
 };
 
 function registeredTools(): Record<string, any> {
@@ -266,6 +271,116 @@ function testToolContract() {
   }
 }
 
+function registeredForProfile(profile: ToolProfile): Record<string, any> {
+  const server = new McpServer({ name: 'smoke', version: '0.0.0' });
+  const target = withProfile(server, profile);
+  const cfg = { ...TEST_CFG, toolProfile: profile };
+  registerAuthTools(target, cfg);
+  registerReadTools(target, cfg);
+  registerWriteTools(target, cfg);
+  return (server as any)._registeredTools as Record<string, any>;
+}
+
+function testProfiles() {
+  console.log('\n--- Tool profiles ---');
+
+  assert('unset profile defaults to read', normalizeProfile(undefined) === 'read');
+  assert('unknown profile value falls back to read', normalizeProfile('everything') === 'read');
+  assert('full must be asked for explicitly', normalizeProfile('full') === 'full');
+  assert('profile value is case- and space-insensitive', normalizeProfile('  Manage ') === 'manage');
+
+  const full = registeredForProfile('full');
+  const manage = registeredForProfile('manage');
+  const read = registeredForProfile('read');
+
+  const names = Object.keys(full);
+  const unclassified = names.filter((n) => !(n in TOOL_PROFILE));
+  assert('every registered tool is classified into a profile', unclassified.length === 0, unclassified.join(', '));
+  const stale = Object.keys(TOOL_PROFILE).filter((n) => !names.includes(n));
+  assert('the profile map has no entries for tools that no longer exist', stale.length === 0, stale.join(', '));
+
+  assert('manage registers fewer tools than full', Object.keys(manage).length < names.length);
+  assert('read registers fewer tools than manage', Object.keys(read).length < Object.keys(manage).length);
+  assert('read exposes no prepare_* tool', !Object.keys(read).some((n) => n.startsWith('prepare_')));
+  assert('read exposes no confirm_* tool', !Object.keys(read).some((n) => n.startsWith('confirm_')));
+  assert('read keeps every list tool and insights', ['list_ad_accounts', 'get_campaigns', 'get_ad_sets', 'get_ads', 'get_insights', 'get_ad_creatives', 'get_audiences'].every((n) => n in read));
+  assert('read keeps auth so the user can still connect', 'setup_meta_auth' in read);
+  assert('read keeps mutation history for auditing', 'get_mutation_history' in read && 'get_mutation_stats' in read);
+
+  assert('manage keeps status, budget and update tools', ['prepare_campaign_status', 'prepare_budget_change', 'prepare_ad_set_update', 'prepare_ad_update', 'prepare_campaign_update'].every((n) => n in manage));
+  assert('manage keeps the confirm kernel', ['confirm_mutation', 'confirm_all_mutations', 'confirm_safe_word', 'get_safety_setup', 'list_pending_mutations'].every((n) => n in manage));
+  assert('manage excludes creation tools', !Object.keys(manage).some((n) => n.endsWith('_create')));
+  assert('manage excludes creatives and uploads', !Object.keys(manage).some((n) => n.endsWith('_creative') || n.endsWith('_upload')));
+  assert('manage excludes cloning and audiences', !('prepare_clone_entity' in manage) && !('prepare_lookalike_audience' in manage));
+
+  assert('a manage-level tool is allowed under full', isToolAllowed('prepare_budget_change', 'full'));
+  assert('a full-level tool is refused under manage', !isToolAllowed('prepare_campaign_create', 'manage'));
+  assert('an unknown tool name is allowed rather than silently hidden', isToolAllowed('some_future_tool', 'read'));
+
+  assert('read profile states mutations are impossible', profileNotice('read').includes('mutations are impossible'));
+  assert('manage profile names the env var needed to unlock creation', profileNotice('manage').includes('META_ADS_BABY_PROFILE=full'));
+  assert('full profile adds no notice', profileNotice('full') === '');
+}
+
+const LISTING_BUDGET_CHARS: Record<ToolProfile, number> = { read: 6_000, manage: 15_000, full: 26_000 };
+const INSTRUCTIONS_BUDGET = 2_500;
+const TOOL_DESCRIPTION_BUDGET = 200;
+const PARAM_DESCRIPTION_BUDGET = 100;
+
+async function listedTools(profile: ToolProfile): Promise<any[]> {
+  const server = new McpServer({ name: 'smoke', version: '0.0.0' });
+  const target = withProfile(server, profile);
+  const cfg = { ...TEST_CFG, toolProfile: profile };
+  registerAuthTools(target, cfg);
+  registerReadTools(target, cfg);
+  registerWriteTools(target, cfg);
+  compactToolListing(server);
+  const handler = (server.server as any)._requestHandlers.get('tools/list');
+  const listing = await handler({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, {});
+  return listing.tools;
+}
+
+function paramDescriptions(schema: unknown, path: string, out: Array<[string, string]>): void {
+  if (Array.isArray(schema)) return schema.forEach((item) => paramDescriptions(item, path, out));
+  if (!schema || typeof schema !== 'object') return;
+  for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+    if (key === 'description' && typeof value === 'string') out.push([path, value]);
+    else paramDescriptions(value, key === 'properties' || key === 'items' ? path : `${path}.${key}`, out);
+  }
+}
+
+async function testToolListingBudget() {
+  console.log('\n--- Tool listing budget ---');
+
+  const compacted = compactSchema({ type: 'object', $schema: 'x', additionalProperties: false, properties: { pattern: { type: 'string', pattern: '^a$', minLength: 1, maxLength: 30 }, n: { type: 'number', exclusiveMinimum: 0 } } }) as any;
+  assert('compaction drops validation-only keys', !('$schema' in compacted) && !('additionalProperties' in compacted) && !('pattern' in compacted.properties.pattern) && !('exclusiveMinimum' in compacted.properties.n));
+  assert('compaction keeps a property that happens to be named like a dropped key', 'pattern' in compacted.properties);
+  assert('compaction keeps limits the model writes against', compacted.properties.pattern.maxLength === 30 && !('minLength' in compacted.properties.pattern));
+
+  for (const profile of ['read', 'manage', 'full'] as ToolProfile[]) {
+    const tools = await listedTools(profile);
+    const size = JSON.stringify(tools).length;
+    assert(`${profile} tools/list stays within ${LISTING_BUDGET_CHARS[profile]} chars`, size <= LISTING_BUDGET_CHARS[profile], `${size} chars`);
+    assert(`${profile} tools/list carries no taskSupport boilerplate`, !tools.some((t) => t.execution));
+    assert(`${profile} tools/list carries no $schema or additionalProperties`, !JSON.stringify(tools).includes('"$schema"') && !JSON.stringify(tools).includes('"additionalProperties"'));
+    const instructions = serverInstructions({ ...TEST_CFG, toolProfile: profile });
+    assert(`${profile} server instructions stay within ${INSTRUCTIONS_BUDGET} chars`, instructions.length <= INSTRUCTIONS_BUDGET, `${instructions.length} chars`);
+  }
+
+  assert('read instructions do not explain the mutation protocol', !serverInstructions({ ...TEST_CFG, toolProfile: 'read' }).includes('safe_word'));
+  assert('mutating instructions explain the safe word once', (serverInstructions({ ...TEST_CFG, toolProfile: 'full' }).match(/safe_word/g) ?? []).length === 1);
+
+  const tools = await listedTools('full');
+  const longTools = tools.filter((t) => (t.description ?? '').length > TOOL_DESCRIPTION_BUDGET).map((t) => `${t.name} (${t.description.length})`);
+  assert(`every tool description is at most ${TOOL_DESCRIPTION_BUDGET} chars`, longTools.length === 0, longTools.join(', '));
+  const params: Array<[string, string]> = [];
+  for (const tool of tools) paramDescriptions(tool.inputSchema, tool.name, params);
+  const longParams = params.filter(([, text]) => text.length > PARAM_DESCRIPTION_BUDGET).map(([path, text]) => `${path} (${text.length})`);
+  assert(`every parameter description is at most ${PARAM_DESCRIPTION_BUDGET} chars`, longParams.length === 0, longParams.join(', '));
+  const boilerplate = params.filter(([path]) => /\.(ad_account_id|safe_word|page|temp_id)$/.test(path));
+  assert('shared params carry no description (server instructions explain them)', boilerplate.length === 0, boilerplate.map(([p]) => p).join(', '));
+}
+
 async function main() {
   guardConfigDir();
   console.log(`Config dir under test: ${getConfigDir()}`);
@@ -277,6 +392,8 @@ async function main() {
   testAmountLimits();
   await testCapSweep();
   testToolContract();
+  testProfiles();
+  await testToolListingBudget();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

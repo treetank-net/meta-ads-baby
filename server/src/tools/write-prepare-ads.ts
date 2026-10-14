@@ -4,20 +4,20 @@ import type { MetaAdsConfig } from '../config.js';
 import { normalizeAdAccountId } from '../validation.js';
 import { createToken } from '../confirm.js';
 import { validateAdAccount, validationResult, prepareResponse } from './write-helpers.js';
-import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema, trackingSpecSchema, assetFeedSpecSchema, MAX_TRACKING_SPECS_PER_MUTATION } from './write-schemas.js';
+import { adAccountIdSchema, safeWordSchema, tempIdSchema, campaignStatusSchema, entityStatusSchema, adUpdateSchema, cloneEntitySchema, trackingSpecSchema, assetFeedSpecSchema, ctaTypeSchema, MAX_TRACKING_SPECS_PER_MUTATION } from './write-schemas.js';
 
 export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'prepare_ad_create',
-    'Prepare creation of a Meta ad under an existing ad set, linking it to an existing ad creative. Returns a preview and confirmation token. The user MUST confirm before the ad is created.',
+    'Create an ad in an ad set from an existing creative, PAUSED by default.',
     {
       ad_account_id: adAccountIdSchema,
-      ad_set_id: z.string().describe('Existing ad set ID'),
-      name: z.string().min(1).describe('Ad name'),
-      creative_id: z.string().describe('Existing ad creative ID'),
-      status: campaignStatusSchema.default('PAUSED').describe('Initial ad status'),
-      tracking_specs: z.array(trackingSpecSchema).max(MAX_TRACKING_SPECS_PER_MUTATION).optional().describe('Tracking specs for conversion tracking (pixel events)'),
-      multi_advertiser_enabled: z.boolean().optional().describe('Enable/disable multi-advertiser ads (default: false recommended)'),
+      ad_set_id: z.string(),
+      name: z.string().min(1),
+      creative_id: z.string(),
+      status: campaignStatusSchema.default('PAUSED'),
+      tracking_specs: z.array(trackingSpecSchema).max(MAX_TRACKING_SPECS_PER_MUTATION).optional().describe('Pixel conversion tracking'),
+      multi_advertiser_enabled: z.boolean().optional(),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -44,17 +44,17 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_ad_creative',
-    'Prepare creation of a Meta ad creative (link ad with image). Returns a preview and confirmation token. The user MUST confirm before the creative is created.',
+    'Create a single-image link ad creative.',
     {
       ad_account_id: adAccountIdSchema,
-      name: z.string().min(1).describe('Creative name'),
-      page_id: z.string().describe('Facebook Page ID to publish the ad from'),
-      link_url: z.string().url().describe('Destination URL for the ad'),
-      message: z.string().min(1).describe('Ad body text (post text above the image)'),
-      headline: z.string().optional().describe('Link headline shown below the image'),
-      description: z.string().optional().describe('Link description shown below the headline'),
-      image_hash: z.string().optional().describe('Image hash from a previously uploaded ad image'),
-      call_to_action_type: z.string().default('LEARN_MORE').describe('CTA button type, e.g. LEARN_MORE, SHOP_NOW, SIGN_UP, DOWNLOAD, CONTACT_US'),
+      name: z.string().min(1),
+      page_id: z.string(),
+      link_url: z.string().url(),
+      message: z.string().min(1).describe('Primary text above the image'),
+      headline: z.string().optional().describe('Shown below the image'),
+      description: z.string().optional().describe('Shown below the headline'),
+      image_hash: z.string().optional().describe('From prepare_image_upload'),
+      call_to_action_type: ctaTypeSchema.default('LEARN_MORE'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -90,11 +90,11 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_image_upload',
-    'Prepare upload of an ad image to a Meta ad account from a URL or local file. Returns a preview and confirmation token. The user MUST confirm before the upload.',
+    'Upload an ad image from a URL or local file; the result carries its image hash.',
     {
       ad_account_id: adAccountIdSchema,
-      source_type: z.enum(['url', 'file']).describe('Whether to upload from a URL or a local file path'),
-      source_value: z.string().min(1).describe('The URL or absolute file path of the image'),
+      source_type: z.enum(['url', 'file']),
+      source_value: z.string().min(1).describe('URL or absolute file path'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -114,11 +114,11 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_ad_status',
-    'Prepare a Meta Ads ad status change (activate/pause/archive). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Pause, activate or archive an ad.',
     {
       ad_account_id: adAccountIdSchema,
-      ad_id: z.string().describe('Ad ID'),
-      status: entityStatusSchema.describe('Target status'),
+      ad_id: z.string(),
+      status: entityStatusSchema,
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -139,10 +139,10 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_ad_removal',
-    'Prepare deletion of a Meta ad (sets status to DELETED). This is irreversible. Returns a preview and confirmation token. The user MUST confirm before the deletion.',
+    'Delete an ad (irreversible).',
     {
       ad_account_id: adAccountIdSchema,
-      ad_id: z.string().describe('Ad ID to delete'),
+      ad_id: z.string(),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -161,7 +161,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_ad_update',
-    'Prepare an update to an existing Meta ad (name, status, creative, tracking_specs). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Update an ad: name, status, creative or tracking specs.',
     adUpdateSchema.shape,
     async ({ ad_account_id, ad_id, name, status, creative_id, tracking_specs, multi_advertiser_enabled, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);
@@ -192,12 +192,12 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_advantage_creative',
-    'Prepare creation of an Advantage+ Creative (asset_feed_spec) with multiple image/video variants, text variants, and headline variants in a single creative. Supports image_crops for placement optimization. Returns a preview and confirmation token.',
+    'Create an Advantage+ creative with several image/video, text and headline variants.',
     {
       ad_account_id: adAccountIdSchema,
-      name: z.string().min(1).describe('Creative name'),
-      page_id: z.string().describe('Facebook Page ID to publish the ad from'),
-      link_url: z.string().url().describe('Default destination URL'),
+      name: z.string().min(1),
+      page_id: z.string(),
+      link_url: z.string().url(),
       asset_feed_spec: assetFeedSpecSchema,
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
@@ -233,7 +233,7 @@ export function registerAdPrepareTools(server: McpServer, cfg: MetaAdsConfig): v
 
   server.tool(
     'prepare_clone_entity',
-    'Prepare cloning/duplicating a Meta Ads campaign, ad set, or ad. Returns a preview and confirmation token. The user MUST confirm before the clone is executed.',
+    'Copy a campaign, ad set or ad; the copy starts PAUSED.',
     cloneEntitySchema.shape,
     async ({ ad_account_id, entity_type, source_id, parent_id, name_override, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);

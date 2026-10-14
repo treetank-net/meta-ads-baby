@@ -21,7 +21,7 @@ function tsvResult(label: string, rows: unknown[], what: string, page?: number, 
 export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
     'list_ad_accounts',
-    'List all Meta Ad Accounts accessible to the authenticated user. Returns a tab-separated table.',
+    'Ad accounts the user can access, with currency and timezone.',
     {
       page: pageSchema,
       page_chars: pageCharsSchema,
@@ -52,10 +52,10 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
 
   server.tool(
     'get_campaigns',
-    'Get campaigns for a Meta Ad Account, optionally filtered by status. Returns a tab-separated table.',
+    'Campaigns of an ad account with status, objective and budget.',
     {
-      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
-      status_filter: z.array(z.string()).optional().describe('Filter by effective status: ACTIVE, PAUSED, ARCHIVED'),
+      ad_account_id: z.string(),
+      status_filter: z.array(z.string()).optional().describe('Effective statuses, e.g. ACTIVE, PAUSED'),
       page: pageSchema,
       page_chars: pageCharsSchema,
     },
@@ -75,10 +75,10 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
 
   server.tool(
     'get_ad_sets',
-    'Get ad sets for a Meta Ad Account, optionally filtered by campaign. Returns a tab-separated table.',
+    'Ad sets of an account or campaign with budget, optimization goal and targeting summary.',
     {
-      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
-      campaign_id: z.string().optional().describe('Filter ad sets by campaign ID'),
+      ad_account_id: z.string(),
+      campaign_id: z.string().optional(),
       page: pageSchema,
       page_chars: pageCharsSchema,
     },
@@ -121,10 +121,10 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
 
   server.tool(
     'get_ads',
-    'Get ads for a Meta Ad Account, optionally filtered by ad set. Returns a tab-separated table. Filter by ad_set_id on large accounts.',
+    'Ads of an account or ad set with status and creative id.',
     {
-      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
-      ad_set_id: z.string().optional().describe('Filter ads by ad set ID'),
+      ad_account_id: z.string(),
+      ad_set_id: z.string().optional(),
       page: pageSchema,
       page_chars: pageCharsSchema,
     },
@@ -144,12 +144,12 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
 
   server.tool(
     'get_insights',
-    'Get performance insights for a Meta Ads object (account, campaign, ad set, or ad). The object_id can be act_{id} for accounts, or a numeric ID for campaigns/adsets/ads. Returns a tab-separated table; action-keyed metrics (actions, cost_per_action_type, purchase_roas) become one column per action_type.',
+    'Performance metrics of an account, campaign, ad set or ad, optionally per level and time period.',
     {
-      object_id: z.string().describe('Object ID: act_{id} for accounts, or campaign/adset/ad numeric ID'),
-      date_preset: z.string().optional().describe('Date preset: today, yesterday, last_7d, last_14d, last_28d, last_30d, last_90d, this_month, last_month, this_quarter, last_quarter, this_year, last_year, maximum'),
-      level: z.string().optional().describe('Aggregation level: account, campaign, adset, ad'),
-      time_increment: z.string().optional().describe('Time granularity: 1 (daily), 7 (weekly), monthly, all_days'),
+      object_id: z.string().describe('act_<id> for an account, or a campaign, ad set or ad id'),
+      date_preset: z.string().optional().describe('e.g. last_7d, last_30d, this_month, last_month, maximum'),
+      level: z.enum(['account', 'campaign', 'adset', 'ad']).optional(),
+      time_increment: z.string().optional().describe('1 = daily, 7 = weekly, monthly, all_days'),
       page: pageSchema,
       page_chars: pageCharsSchema,
     },
@@ -169,9 +169,9 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
 
   server.tool(
     'get_ad_creatives',
-    'Get ad creatives for a Meta Ad Account. Returns a tab-separated table.',
+    'Ad creatives of an ad account.',
     {
-      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
+      ad_account_id: z.string(),
       page: pageSchema,
       page_chars: pageCharsSchema,
     },
@@ -191,9 +191,9 @@ export function registerAccountReadTools(server: McpServer, cfg: MetaAdsConfig) 
 
   server.tool(
     'get_audiences',
-    'Get custom audiences for a Meta Ad Account. Returns a tab-separated table.',
+    'Custom and lookalike audiences of an ad account with size estimates.',
     {
-      ad_account_id: z.string().describe('Meta Ad Account ID (e.g. "act_123456" or "123456")'),
+      ad_account_id: z.string(),
       page: pageSchema,
       page_chars: pageCharsSchema,
     },

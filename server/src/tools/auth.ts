@@ -57,7 +57,7 @@ function semverGt(a: string, b: string): boolean {
 export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
     'setup_meta_auth',
-    'Start Facebook OAuth flow for Meta Ads. Returns a URL for the user to click. After authorization the access token is saved automatically.',
+    'Start the Facebook sign-in flow; returns a URL for the user to open.',
     {},
     async () => {
       const { shortUrl } = startAuthFlow(cfg);
@@ -77,7 +77,7 @@ export function registerAuthTools(server: McpServer, cfg: MetaAdsConfig) {
 
   server.tool(
     'update_plugin',
-    'Check for plugin updates and download them. Reports the version installed on disk separately from the version this process is actually running, because a running MCP server cannot swap its own bundle — the download only takes effect after a session restart.',
+    'Download a newer plugin version; it takes effect after a session restart.',
     {},
     async () => {
       const installedVer = getInstalledVersion();

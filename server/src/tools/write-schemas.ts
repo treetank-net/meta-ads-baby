@@ -24,9 +24,9 @@ export const MAX_ASSET_FEED_AD_FORMATS_PER_MUTATION = 5;
 
 export const CODEX_HOOK_INSTALL_COMMAND = 'npx codex-marketplace add treetank-net/meta-ads-baby/hooks/meta-ads-baby-safety --hook --global';
 
-export const adAccountIdSchema = z.string().describe('Meta ad account ID (digits only or act_XXXX format) from list_ad_accounts');
-export const safeWordSchema = z.string().min(3).max(32).describe('Short random ASCII safe word for user confirmation. The LLM must invent this and include it in the preview shown to the user.');
-export const tempIdSchema = z.string().startsWith('$').optional().describe('Optional temp ID (must start with $) for batch dependency resolution. Other prepare_* calls can reference this temp ID in their params, and confirm_all_mutations will resolve it to the real ID after execution.');
+export const adAccountIdSchema = z.string();
+export const safeWordSchema = z.string().min(3).max(32);
+export const tempIdSchema = z.string().startsWith('$').optional();
 export const campaignStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']);
 export const entityStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']);
 export const entityTypeSchema = z.enum(['campaign', 'ad_set', 'ad']);
@@ -40,144 +40,144 @@ export const optimizationGoalSchema = z.enum([
   'OFFSITE_CONVERSIONS', 'LEAD_GENERATION', 'APP_INSTALLS', 'THRUPLAY', 'VALUE',
 ]);
 
-export const ctaTypeSchema = z.string().describe('Call to action type, e.g. LEARN_MORE, SHOP_NOW, SIGN_UP, DOWNLOAD, CONTACT_US, BOOK_TRAVEL, LISTEN_NOW, WATCH_MORE');
+export const ctaTypeSchema = z.string().describe('CTA, e.g. LEARN_MORE, SHOP_NOW, SIGN_UP, CONTACT_US');
 
 export const childAttachmentSchema = z.object({
-  image_hash: z.string().describe('Image hash from prepare_image_upload'),
-  link: z.string().url().describe('Destination URL for this carousel card'),
-  name: z.string().min(1).describe('Headline for this carousel card'),
-  description: z.string().optional().describe('Description text for this carousel card'),
+  image_hash: z.string(),
+  link: z.string().url(),
+  name: z.string().min(1).describe('Card headline'),
+  description: z.string().optional(),
   call_to_action: z.object({
     type: ctaTypeSchema,
     value: z.object({ link: z.string().url() }).optional(),
-  }).optional().describe('Optional per-card CTA override'),
+  }).optional(),
 });
 
 export const carouselCreativeSchema = z.object({
   ad_account_id: adAccountIdSchema,
-  name: z.string().min(1).describe('Creative name'),
-  page_id: z.string().describe('Facebook Page ID to publish the ad from'),
-  message: z.string().min(1).describe('Post text shown above the carousel'),
-  link: z.string().url().describe('Default destination URL for the carousel'),
-  child_attachments: z.array(childAttachmentSchema).min(2).max(10).describe('Carousel cards (2-10 items)'),
-  call_to_action_type: ctaTypeSchema.optional().describe('CTA button type for the whole carousel'),
+  name: z.string().min(1),
+  page_id: z.string(),
+  message: z.string().min(1).describe('Primary text above the cards'),
+  link: z.string().url(),
+  child_attachments: z.array(childAttachmentSchema).min(2).max(10),
+  call_to_action_type: ctaTypeSchema.optional(),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
 
 export const videoCreativeSchema = z.object({
   ad_account_id: adAccountIdSchema,
-  name: z.string().min(1).describe('Creative name'),
-  page_id: z.string().describe('Facebook Page ID to publish the ad from'),
-  video_id: z.string().describe('Uploaded video ID from prepare_video_upload'),
-  message: z.string().optional().describe('Post text shown above the video'),
-  title: z.string().optional().describe('Video title'),
-  image_hash: z.string().optional().describe('Custom thumbnail image hash from prepare_image_upload'),
-  call_to_action_type: ctaTypeSchema.optional().describe('CTA button type'),
-  call_to_action_link: z.string().url().optional().describe('CTA destination URL'),
+  name: z.string().min(1),
+  page_id: z.string(),
+  video_id: z.string(),
+  message: z.string().optional().describe('Primary text above the video'),
+  title: z.string().optional(),
+  image_hash: z.string().optional().describe('Custom thumbnail'),
+  call_to_action_type: ctaTypeSchema.optional(),
+  call_to_action_link: z.string().url().optional(),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
 
 export const videoUploadSchema = z.object({
   ad_account_id: adAccountIdSchema,
-  file_url: z.string().url().optional().describe('URL of the video to upload'),
-  file_path: z.string().optional().describe('Absolute local file path of the video to upload'),
-  title: z.string().optional().describe('Video title'),
+  file_url: z.string().url().optional().describe('This or file_path'),
+  file_path: z.string().optional().describe('Absolute path'),
+  title: z.string().optional(),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
 
 export const campaignUpdateSchema = z.object({
   ad_account_id: adAccountIdSchema,
-  campaign_id: z.string().describe('Campaign ID to update'),
-  name: z.string().min(1).optional().describe('New campaign name'),
-  spend_cap: z.number().positive().optional().describe('New spend cap in cents (currency minor units)'),
-  bid_strategy: z.string().optional().describe('New bid strategy, e.g. LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP'),
-  daily_budget: z.number().positive().optional().describe('New daily budget in cents'),
-  status: campaignStatusSchema.optional().describe('New campaign status'),
+  campaign_id: z.string(),
+  name: z.string().min(1).optional(),
+  spend_cap: z.number().positive().optional(),
+  bid_strategy: z.string().optional().describe('e.g. LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP'),
+  daily_budget: z.number().positive().optional(),
+  status: campaignStatusSchema.optional(),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
 
 export const promotedObjectSchema = z.object({
-  pixel_id: z.string().describe('Facebook Pixel ID'),
-  custom_event_type: z.string().optional().describe('Conversion event type, e.g. PURCHASE, LEAD, COMPLETE_REGISTRATION, ADD_TO_CART, INITIATED_CHECKOUT, SEARCH, CONTENT_VIEW, ADD_PAYMENT_INFO, ADD_TO_WISHLIST, OTHER'),
-  pixel_rule: z.record(z.unknown()).optional().describe('Optional pixel rule for custom conversions'),
-}).describe('Promoted object with pixel tracking configuration');
+  pixel_id: z.string(),
+  custom_event_type: z.string().optional().describe('e.g. PURCHASE, LEAD, COMPLETE_REGISTRATION, ADD_TO_CART'),
+  pixel_rule: z.record(z.unknown()).optional().describe('Custom conversion rule'),
+});
 
 export const trackingSpecSchema = z.object({
-  'action.type': z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).describe('Action types to track, e.g. ["offsite_conversion"]'),
-  fb_pixel: z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).optional().describe('Pixel IDs to track'),
-  'fb_pixel_event': z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).optional().describe('Pixel event names, e.g. ["fb_pixel_purchase"]'),
-}).describe('Tracking spec for conversion tracking on ads');
+  'action.type': z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).describe('e.g. ["offsite_conversion"]'),
+  fb_pixel: z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).optional(),
+  'fb_pixel_event': z.array(z.string()).max(MAX_TRACKING_SPEC_VALUES_PER_MUTATION).optional().describe('e.g. ["fb_pixel_purchase"]'),
+});
 
 export const adUpdateSchema = z.object({
   ad_account_id: adAccountIdSchema,
-  ad_id: z.string().describe('Ad ID to update'),
-  name: z.string().min(1).optional().describe('New ad name'),
-  status: entityStatusSchema.optional().describe('New ad status'),
-  creative_id: z.string().optional().describe('New ad creative ID'),
-  tracking_specs: z.array(trackingSpecSchema).max(MAX_TRACKING_SPECS_PER_MUTATION).optional().describe('Tracking specs for conversion tracking (pixel events)'),
-  multi_advertiser_enabled: z.boolean().optional().describe('Enable/disable multi-advertiser ads'),
+  ad_id: z.string(),
+  name: z.string().min(1).optional(),
+  status: entityStatusSchema.optional(),
+  creative_id: z.string().optional(),
+  tracking_specs: z.array(trackingSpecSchema).max(MAX_TRACKING_SPECS_PER_MUTATION).optional().describe('Pixel conversion tracking'),
+  multi_advertiser_enabled: z.boolean().optional(),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
 
 export const assetFeedImageSchema = z.object({
-  hash: z.string().describe('Image hash from prepare_image_upload'),
-  image_crops: z.record(z.array(z.array(z.number()))).optional().describe('Crop specs per placement, e.g. {"100x100": [[0,0],[100,100]]}'),
+  hash: z.string(),
+  image_crops: z.record(z.array(z.array(z.number()))).optional().describe('Per aspect ratio, e.g. {"100x100": [[0,0],[100,100]]}'),
 });
 
 export const assetFeedBodySchema = z.object({
-  text: z.string().min(1).describe('Body text variant'),
+  text: z.string().min(1),
 });
 
 export const assetFeedTitleSchema = z.object({
-  text: z.string().min(1).describe('Headline variant'),
+  text: z.string().min(1),
 });
 
 export const assetFeedDescriptionSchema = z.object({
-  text: z.string().min(1).describe('Description variant'),
+  text: z.string().min(1),
 });
 
 export const assetFeedVideoSchema = z.object({
-  video_id: z.string().describe('Video ID from prepare_video_upload'),
-  thumbnail_hash: z.string().optional().describe('Thumbnail image hash'),
+  video_id: z.string(),
+  thumbnail_hash: z.string().optional(),
 });
 
 export const assetFeedSpecSchema = z.object({
-  images: z.array(assetFeedImageSchema).max(MAX_ASSET_FEED_MEDIA_PER_MUTATION).optional().describe('Multiple image variants (different formats: 1200x628, 1080x1080, 1080x1920), up to 10'),
-  videos: z.array(assetFeedVideoSchema).max(MAX_ASSET_FEED_MEDIA_PER_MUTATION).optional().describe('Multiple video variants, up to 10'),
-  bodies: z.array(assetFeedBodySchema).min(1).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).describe('Body text variants (up to 5)'),
-  titles: z.array(assetFeedTitleSchema).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).optional().describe('Headline variants (up to 5)'),
-  descriptions: z.array(assetFeedDescriptionSchema).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).optional().describe('Description variants (up to 5)'),
-  call_to_action_types: z.array(z.string()).max(MAX_ASSET_FEED_CTA_TYPES_PER_MUTATION).optional().describe('CTA types, e.g. ["LEARN_MORE", "SHOP_NOW"]'),
-  link_urls: z.array(z.object({ website_url: z.string().url() })).max(MAX_ASSET_FEED_LINK_URLS_PER_MUTATION).optional().describe('Link URL variants'),
-  ad_formats: z.array(z.string()).max(MAX_ASSET_FEED_AD_FORMATS_PER_MUTATION).optional().describe('Ad formats, e.g. ["SINGLE_IMAGE", "CAROUSEL"]'),
-}).describe('Asset feed spec for Advantage+ Creative with multiple image/text/headline variants');
+  images: z.array(assetFeedImageSchema).max(MAX_ASSET_FEED_MEDIA_PER_MUTATION).optional().describe('Variants such as 1200x628, 1080x1080, 1080x1920'),
+  videos: z.array(assetFeedVideoSchema).max(MAX_ASSET_FEED_MEDIA_PER_MUTATION).optional(),
+  bodies: z.array(assetFeedBodySchema).min(1).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION),
+  titles: z.array(assetFeedTitleSchema).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).optional(),
+  descriptions: z.array(assetFeedDescriptionSchema).max(MAX_ASSET_FEED_TEXTS_PER_MUTATION).optional(),
+  call_to_action_types: z.array(z.string()).max(MAX_ASSET_FEED_CTA_TYPES_PER_MUTATION).optional().describe('e.g. ["LEARN_MORE", "SHOP_NOW"]'),
+  link_urls: z.array(z.object({ website_url: z.string().url() })).max(MAX_ASSET_FEED_LINK_URLS_PER_MUTATION).optional(),
+  ad_formats: z.array(z.string()).max(MAX_ASSET_FEED_AD_FORMATS_PER_MUTATION).optional().describe('e.g. ["SINGLE_IMAGE", "CAROUSEL"]'),
+});
 
 export const cloneEntitySchema = z.object({
   ad_account_id: adAccountIdSchema,
-  entity_type: entityTypeSchema.describe('Type of entity to clone: campaign, ad_set, or ad'),
-  source_id: z.string().describe('ID of the source entity to clone'),
-  parent_id: z.string().optional().describe('Parent entity ID. Required for ad_set (campaign_id) and ad (adset_id).'),
-  name_override: z.string().optional().describe('Optional name for the cloned entity. Defaults to source name with " - Copy" suffix.'),
+  entity_type: entityTypeSchema,
+  source_id: z.string(),
+  parent_id: z.string().optional().describe('Target campaign id for ad_set, target ad set id for ad'),
+  name_override: z.string().optional().describe('Appended to the copy name as " - <value>"'),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });
 
 export const leadCreativeSchema = z.object({
   ad_account_id: adAccountIdSchema,
-  name: z.string().min(1).describe('Creative name'),
-  page_id: z.string().describe('Facebook Page ID to publish the ad from'),
-  message: z.string().min(1).describe('Post text shown above the ad'),
-  link: z.string().url().describe('Destination URL for the ad'),
-  image_hash: z.string().describe('Image hash from prepare_image_upload'),
-  headline: z.string().min(1).describe('Link headline shown below the image'),
-  description: z.string().min(1).describe('Link description shown below the headline'),
-  lead_gen_form_id: z.string().describe('Lead generation form ID'),
-  call_to_action_type: ctaTypeSchema.default('SIGN_UP').describe('CTA button type (default: SIGN_UP)'),
+  name: z.string().min(1),
+  page_id: z.string(),
+  message: z.string().min(1).describe('Primary text above the image'),
+  link: z.string().url(),
+  image_hash: z.string(),
+  headline: z.string().min(1),
+  description: z.string().min(1),
+  lead_gen_form_id: z.string(),
+  call_to_action_type: ctaTypeSchema.default('SIGN_UP'),
   safe_word: safeWordSchema,
   temp_id: tempIdSchema,
 });

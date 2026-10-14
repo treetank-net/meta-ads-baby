@@ -22,11 +22,11 @@ import {
 export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConfig): void {
   server.tool(
     'prepare_campaign_status',
-    'Prepare a Meta Ads campaign status change (activate/pause/archive). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Pause, activate or archive a campaign.',
     {
       ad_account_id: adAccountIdSchema,
-      campaign_id: z.string().describe('Campaign ID'),
-      status: campaignStatusSchema.describe('Target status'),
+      campaign_id: z.string(),
+      status: campaignStatusSchema,
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -47,13 +47,13 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_budget_change',
-    'Prepare a budget change for a Meta Ads campaign or ad set. Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Change the daily or lifetime budget of a campaign or ad set.',
     {
       ad_account_id: adAccountIdSchema,
-      object_id: z.string().describe('Campaign ID or ad set ID to update'),
-      object_type: z.enum(['campaign', 'ad_set']).describe('Whether object_id is a campaign or ad set'),
-      daily_budget: z.number().positive().optional().describe('New daily budget in cents (currency minor units). Provide this or lifetime_budget.'),
-      lifetime_budget: z.number().positive().optional().describe('New lifetime budget in cents (currency minor units). Provide this or daily_budget.'),
+      object_id: z.string(),
+      object_type: z.enum(['campaign', 'ad_set']),
+      daily_budget: z.number().positive().optional(),
+      lifetime_budget: z.number().positive().optional(),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -84,16 +84,16 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_campaign_create',
-    'Prepare creation of a Meta Ads campaign. Returns a preview and confirmation token. The user MUST confirm before the campaign is created.',
+    'Create a campaign, PAUSED by default.',
     {
       ad_account_id: adAccountIdSchema,
-      name: z.string().min(1).describe('Campaign name'),
-      objective: objectiveSchema.describe('Campaign objective'),
-      status: campaignStatusSchema.default('PAUSED').describe('Initial campaign status'),
-      special_ad_categories: z.array(z.string()).max(MAX_SPECIAL_AD_CATEGORIES_PER_MUTATION).default(['NONE']).describe('Special ad categories, e.g. HOUSING, EMPLOYMENT, CREDIT, or NONE'),
-      daily_budget: z.number().positive().optional().describe('Daily budget in cents (currency minor units)'),
-      lifetime_budget: z.number().positive().optional().describe('Lifetime budget in cents (currency minor units)'),
-      bid_strategy: z.string().optional().describe('Bid strategy, e.g. LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP'),
+      name: z.string().min(1),
+      objective: objectiveSchema,
+      status: campaignStatusSchema.default('PAUSED'),
+      special_ad_categories: z.array(z.string()).max(MAX_SPECIAL_AD_CATEGORIES_PER_MUTATION).default(['NONE']).describe('HOUSING, EMPLOYMENT, CREDIT, ISSUES_ELECTIONS_POLITICS or NONE'),
+      daily_budget: z.number().positive().optional(),
+      lifetime_budget: z.number().positive().optional(),
+      bid_strategy: z.string().optional().describe('e.g. LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -133,23 +133,23 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_ad_set_create',
-    'Prepare creation of a Meta Ads ad set under an existing campaign. Returns a preview and confirmation token. The user MUST confirm before the ad set is created.',
+    'Create an ad set under an existing campaign, PAUSED by default.',
     {
       ad_account_id: adAccountIdSchema,
-      campaign_id: z.string().describe('Existing campaign ID'),
-      name: z.string().min(1).describe('Ad set name'),
-      daily_budget: z.number().positive().optional().describe('Daily budget in cents. Provide this or lifetime_budget.'),
-      lifetime_budget: z.number().positive().optional().describe('Lifetime budget in cents. Provide this or daily_budget.'),
-      billing_event: billingEventSchema.describe('Billing event'),
-      optimization_goal: optimizationGoalSchema.describe('Optimization goal'),
-      targeting: z.record(z.unknown()).describe('Targeting spec object (geo_locations, age_min, age_max, genders, interests, etc.)'),
-      start_time: z.string().optional().describe('Start time in ISO 8601 format'),
-      end_time: z.string().optional().describe('End time in ISO 8601 format (required for lifetime budgets)'),
-      status: campaignStatusSchema.default('PAUSED').describe('Initial ad set status'),
-      bid_amount: z.number().positive().optional().describe('Bid amount in cents for manual bidding'),
-      promoted_object: promotedObjectSchema.optional().describe('Promoted object with pixel tracking (pixel_id, custom_event_type). Required for OFFSITE_CONVERSIONS optimization.'),
-      dsa_beneficiary: z.string().optional().describe('DSA beneficiary name (EU requirement). Auto-fetched from ad account if not provided.'),
-      dsa_payor: z.string().optional().describe('DSA payor name (EU requirement). Auto-fetched from ad account if not provided.'),
+      campaign_id: z.string(),
+      name: z.string().min(1),
+      daily_budget: z.number().positive().optional(),
+      lifetime_budget: z.number().positive().optional(),
+      billing_event: billingEventSchema,
+      optimization_goal: optimizationGoalSchema,
+      targeting: z.record(z.unknown()).describe('Graph targeting spec: geo_locations, age_min, age_max, genders, flexible_spec, ...'),
+      start_time: z.string().optional().describe('ISO 8601'),
+      end_time: z.string().optional().describe('ISO 8601; required with lifetime_budget'),
+      status: campaignStatusSchema.default('PAUSED'),
+      bid_amount: z.number().positive().optional(),
+      promoted_object: promotedObjectSchema.optional().describe('Required for OFFSITE_CONVERSIONS'),
+      dsa_beneficiary: z.string().optional().describe('EU DSA; defaults to the ad account setting'),
+      dsa_payor: z.string().optional().describe('EU DSA; defaults to the ad account setting'),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -218,11 +218,11 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_ad_set_status',
-    'Prepare a Meta Ads ad set status change (activate/pause/archive). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Pause, activate or archive an ad set.',
     {
       ad_account_id: adAccountIdSchema,
-      ad_set_id: z.string().describe('Ad set ID'),
-      status: entityStatusSchema.describe('Target status'),
+      ad_set_id: z.string(),
+      status: entityStatusSchema,
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -243,17 +243,17 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_ad_set_update',
-    'Prepare an update to an existing Meta Ads ad set (targeting, budget, optimization, bid, end time, promoted_object). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Update an ad set: targeting, budget, optimization goal, bid, end time or promoted object.',
     {
       ad_account_id: adAccountIdSchema,
-      ad_set_id: z.string().describe('Ad set ID to update'),
-      targeting: z.record(z.unknown()).optional().describe('New targeting spec object'),
-      daily_budget: z.number().positive().optional().describe('New daily budget in cents'),
-      lifetime_budget: z.number().positive().optional().describe('New lifetime budget in cents'),
-      optimization_goal: optimizationGoalSchema.optional().describe('New optimization goal'),
-      bid_amount: z.number().positive().optional().describe('New bid amount in cents'),
-      end_time: z.string().optional().describe('New end time in ISO 8601 format'),
-      promoted_object: promotedObjectSchema.optional().describe('Promoted object with pixel tracking (pixel_id, custom_event_type)'),
+      ad_set_id: z.string(),
+      targeting: z.record(z.unknown()).optional().describe('Full targeting spec'),
+      daily_budget: z.number().positive().optional(),
+      lifetime_budget: z.number().positive().optional(),
+      optimization_goal: optimizationGoalSchema.optional(),
+      bid_amount: z.number().positive().optional(),
+      end_time: z.string().optional().describe('ISO 8601'),
+      promoted_object: promotedObjectSchema.optional(),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -294,10 +294,10 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_campaign_removal',
-    'Prepare deletion of a Meta Ads campaign (sets status to DELETED). This is irreversible. Returns a preview and confirmation token. The user MUST confirm before the deletion.',
+    'Delete a campaign with its ad sets and ads (irreversible).',
     {
       ad_account_id: adAccountIdSchema,
-      campaign_id: z.string().describe('Campaign ID to delete'),
+      campaign_id: z.string(),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -316,10 +316,10 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_ad_set_removal',
-    'Prepare deletion of a Meta Ads ad set (sets status to DELETED). This is irreversible. Returns a preview and confirmation token. The user MUST confirm before the deletion.',
+    'Delete an ad set with its ads (irreversible).',
     {
       ad_account_id: adAccountIdSchema,
-      ad_set_id: z.string().describe('Ad set ID to delete'),
+      ad_set_id: z.string(),
       safe_word: safeWordSchema,
       temp_id: tempIdSchema,
     },
@@ -338,7 +338,7 @@ export function registerCampaignPrepareTools(server: McpServer, cfg: MetaAdsConf
 
   server.tool(
     'prepare_campaign_update',
-    'Prepare an update to an existing Meta Ads campaign (name, spend_cap, bid_strategy, daily_budget, status). Returns a preview and confirmation token. The user MUST confirm before the change is applied.',
+    'Update a campaign: name, spend cap, bid strategy, daily budget or status.',
     campaignUpdateSchema.shape,
     async ({ ad_account_id, campaign_id, name, spend_cap, bid_strategy, daily_budget, status, safe_word, temp_id }) => {
       const accountError = validateAdAccount(ad_account_id);

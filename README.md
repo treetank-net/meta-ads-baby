@@ -15,6 +15,16 @@ All write operations use a two-step flow:
 
 Claude Code and Codex hooks enforce the user-message gate. The MCP server also keeps mutation tokens server-side, one-shot, and time-limited.
 
+## Tool profiles
+
+`META_ADS_BABY_PROFILE` decides which tools the server registers:
+
+- `read` (default) — accounts, campaigns, ad sets, ads, insights, creatives, audiences, mutation history. No mutations possible.
+- `manage` — adds the confirm tools and edits of existing campaigns, ad sets and ads (status, budget, settings, removal).
+- `full` — adds creation: campaigns, ad sets, ads, creatives, image/video uploads, copies, lookalike audiences.
+
+An unknown value falls back to `read`. Restart the server after changing it. The `meta-ads-manual` skill documents the tools in detail.
+
 ## Requirements
 
 - Node.js 18+

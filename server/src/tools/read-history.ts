@@ -6,14 +6,14 @@ import { readHistory, getHistoryStats } from '../history.js';
 export function registerHistoryReadTools(server: McpServer, cfg: MetaAdsConfig) {
   server.tool(
     'get_mutation_history',
-    'Browse past mutation operations. Shows what was done, when, with what params (including asset IDs, image URLs, headlines, etc.). Use to replicate previous campaigns or find previously used assets/logos.',
+    'Past mutations from the local audit log.',
     {
-      ad_account_id: z.string().optional().describe('Filter by ad account ID'),
-      action: z.string().optional().describe('Filter by action type, e.g. campaign_create, adset_create, ad_create'),
-      since: z.string().optional().describe('ISO date/time lower bound, e.g. 2025-01-01'),
-      until: z.string().optional().describe('ISO date/time upper bound'),
-      success_only: z.boolean().optional().default(false).describe('Only show successful operations'),
-      limit: z.number().optional().default(20).describe('Max entries to return (default 20, max 200)'),
+      ad_account_id: z.string().optional(),
+      action: z.string().optional().describe('e.g. campaign_create'),
+      since: z.string().optional().describe('ISO date'),
+      until: z.string().optional().describe('ISO date'),
+      success_only: z.boolean().optional().default(false),
+      limit: z.number().optional().default(20).describe('Max 200'),
     },
     async ({ ad_account_id, action, since, until, success_only, limit }) => {
       const entries = readHistory({
@@ -44,9 +44,9 @@ export function registerHistoryReadTools(server: McpServer, cfg: MetaAdsConfig) 
 
   server.tool(
     'get_mutation_stats',
-    'Get summary statistics of past mutations: total count, success/fail rate, breakdown by action type, recently used asset IDs.',
+    'Summary of past mutations: counts, success rate, per action, recent asset ids.',
     {
-      ad_account_id: z.string().optional().describe('Filter stats by ad account ID'),
+      ad_account_id: z.string().optional(),
     },
     async ({ ad_account_id }) => {
       const stats = getHistoryStats(ad_account_id);
