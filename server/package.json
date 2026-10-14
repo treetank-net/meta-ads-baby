@@ -1,6 +1,6 @@
 {
   "name": "meta-ads-baby-server",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Meta (Facebook) Ads MCP server with two-phase mutation safety",
   "type": "module",
   "main": "dist/index.js",

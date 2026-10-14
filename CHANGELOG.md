@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0
+
+### Added
+- **`output: "file"`** on all seven table tools, including `get_insights`: every shaped row goes to `~/.meta-ads-baby/exports/<table>-<timestamp>.tsv` (plain TSV: header line, tab-delimited, no quoting, no `#` lines); the response is the header, column list, totals and 5 preview rows. File mode reads up to 200 Graph pages (inline: 20) and ignores default row limits. The `meta-ads-manual` skill documents the format with parsing examples.
+
 ## 0.15.0
 
 ### Changed — token diet (see marketing-context-mcp `docs/response-format-contract.md`)
